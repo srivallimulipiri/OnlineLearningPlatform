@@ -1,308 +1,310 @@
-import { Container, Row, Col, Card, Form, Button, Alert } from 'react-bootstrap';
-import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
-import { FaGoogle, FaGithub, FaUser, FaChalkboardTeacher } from 'react-icons/fa';
+// src/pages/Register.jsx
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import api from '../services/api';
+import './Auth.css';
 
-function Register() {
+const Register = () => {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     password: '',
     confirmPassword: '',
-    role: 'student'
+    role: 'student',
+    agreeToTerms: false
   });
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    setError('');
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
+
+  const validateForm = () => {
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return false;
+    }
+    if (!formData.agreeToTerms) {
+      setError('Please agree to the Terms of Service and Privacy Policy');
+      return false;
+    }
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
+    setError('');
+
+    if (!validateForm()) return;
+
+    setLoading(true);
+
+    try {
+      const response = await api.post('/auth/register', {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role
+      });
+      login(response.data);
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      console.error('Registration error:', err);
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-
-    setIsLoading(true);
-    
-    // Simulate API call
-    setTimeout(() => {
-      console.log('Register attempt:', formData);
-      setIsLoading(false);
-      // navigate('/dashboard/student') // Uncomment when backend is ready
-    }, 1500);
-  };
-
-  const handleSocialRegister = (provider) => {
-    console.log(`Register with ${provider}`);
   };
 
   return (
-    <div className="register-page">
-      <Container fluid className="register-container">
-        <Row className="min-vh-100 align-items-center justify-content-center">
-          <Col lg={10} xl={8}>
-            <Row className="register-card-wrapper">
-              {/* Left Side - Branding */}
-              <Col lg={6} className="register-brand-side">
-                <div className="brand-content">
-                  <div className="brand-logo">
-                    <h1>Join LearnHub</h1>
-                  </div>
-                  <h2>Start Your Learning Journey!</h2>
-                  <p>Join thousands of learners and instructors in our growing community.</p>
-                  
-                  <div className="feature-highlights">
-                    <div className="feature-item">
-                      <span className="feature-icon">🚀</span>
-                      <span>Learn from industry experts</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">💡</span>
-                      <span>Build real-world projects</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">🏆</span>
-                      <span>Earn verified certificates</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">👥</span>
-                      <span>Connect with peers globally</span>
-                    </div>
+    <div className="auth-page">
+      <div className="auth-container">
+        {/* Left Side - Branding */}
+        <div className="auth-brand-side">
+          <div className="brand-content">
+            <div className="brand-logo">
+              <span className="brand-icon">🎓</span>
+              <h1>SkillSphere</h1>
+            </div>
+            <h2 className="brand-tagline">Start Your Journey!</h2>
+            <p className="brand-description">
+              Join thousands of learners and unlock your potential with our comprehensive courses.
+            </p>
+            
+            <div className="feature-highlights">
+              <div className="feature-item">
+                <span className="feature-icon">🚀</span>
+                <span>Get started in minutes</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">💡</span>
+                <span>Learn from industry experts</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">🎯</span>
+                <span>Achieve your goals faster</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">🌟</span>
+                <span>Build your portfolio</span>
+              </div>
+            </div>
+
+            <div className="stats-preview">
+              <div className="stat-item">
+                <span className="stat-number">50K+</span>
+                <span className="stat-label">Students</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-number">500+</span>
+                <span className="stat-label">Courses</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-number">4.8★</span>
+                <span className="stat-label">Rating</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right Side - Registration Form */}
+        <div className="auth-form-side">
+          <div className="auth-form-container">
+            <div className="form-header">
+              <h2>Create Account</h2>
+              <p>Fill in your information to get started</p>
+            </div>
+
+            {error && (
+              <div className="error-message">
+                <span className="error-icon">⚠️</span>
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="auth-form">
+              <div className="form-group">
+                <label htmlFor="name">Full Name</label>
+                <div className="input-container">
+                  <span className="input-icon">👤</span>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Enter your full name"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="email">Email Address</label>
+                <div className="input-container">
+                  <span className="input-icon">📧</span>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter your email"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label htmlFor="password">Password</label>
+                  <div className="input-container">
+                    <span className="input-icon">🔒</span>
+                    <input
+                      type="password"
+                      id="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={handleChange}
+                      placeholder="Create password"
+                      required
+                      disabled={loading}
+                    />
                   </div>
                 </div>
-              </Col>
 
-              {/* Right Side - Register Form */}
-              <Col lg={6} className="register-form-side">
-                <Card className="register-form-card">
-                  <Card.Body className="p-5">
-                    <div className="text-center mb-4">
-                      <h3 className="register-title">Create Account</h3>
-                      <p className="register-subtitle">Choose your role and get started</p>
+                <div className="form-group">
+                  <label htmlFor="confirmPassword">Confirm Password</label>
+                  <div className="input-container">
+                    <span className="input-icon">🔒</span>
+                    <input
+                      type="password"
+                      id="confirmPassword"
+                      name="confirmPassword"
+                      value={formData.confirmPassword}
+                      onChange={handleChange}
+                      placeholder="Confirm password"
+                      required
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="role">I want to join as</label>
+                <div className="role-selection">
+                  <label className="role-option">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="student"
+                      checked={formData.role === 'student'}
+                      onChange={handleChange}
+                      disabled={loading}
+                    />
+                    <div className="role-card">
+                      <span className="role-icon">🎓</span>
+                      <span className="role-title">Student</span>
+                      <span className="role-desc">Learn new skills</span>
                     </div>
-
-                    {error && (
-                      <Alert variant="danger" className="mb-4">
-                        {error}
-                      </Alert>
-                    )}
-
-                    {/* Role Selection */}
-                    <div className="role-selection mb-4">
-                      <p className="role-label mb-3">I want to:</p>
-                      <div className="role-options">
-                        <div 
-                          className={`role-option ${formData.role === 'student' ? 'active' : ''}`}
-                          onClick={() => setFormData({...formData, role: 'student'})}
-                        >
-                          <FaUser className="role-icon" />
-                          <div>
-                            <h6>Learn</h6>
-                            <small>Take courses and earn certificates</small>
-                          </div>
-                        </div>
-                        <div 
-                          className={`role-option ${formData.role === 'teacher' ? 'active' : ''}`}
-                          onClick={() => setFormData({...formData, role: 'teacher'})}
-                        >
-                          <FaChalkboardTeacher className="role-icon" />
-                          <div>
-                            <h6>Teach</h6>
-                            <small>Create courses and share knowledge</small>
-                          </div>
-                        </div>
-                      </div>
+                  </label>
+                  <label className="role-option">
+                    <input
+                      type="radio"
+                      name="role"
+                      value="teacher"
+                      checked={formData.role === 'teacher'}
+                      onChange={handleChange}
+                      disabled={loading}
+                    />
+                    <div className="role-card">
+                      <span className="role-icon">👨‍🏫</span>
+                      <span className="role-title">Teacher</span>
+                      <span className="role-desc">Share knowledge</span>
                     </div>
+                  </label>
+                </div>
+              </div>
 
-                    {/* Social Registration */}
-                    <div className="social-register-section mb-4">
-                      <Button 
-                        variant="outline-secondary" 
-                        className="social-btn google-btn"
-                        onClick={() => handleSocialRegister('Google')}
-                      >
-                        <FaGoogle className="me-2" />
-                        Continue with Google
-                      </Button>
-                      <Button 
-                        variant="outline-secondary" 
-                        className="social-btn github-btn"
-                        onClick={() => handleSocialRegister('GitHub')}
-                      >
-                        <FaGithub className="me-2" />
-                        Continue with GitHub
-                      </Button>
-                    </div>
+              <div className="form-options">
+                <label className="checkbox-container">
+                  <input
+                    type="checkbox"
+                    name="agreeToTerms"
+                    checked={formData.agreeToTerms}
+                    onChange={handleChange}
+                    disabled={loading}
+                    required
+                  />
+                  <span className="checkmark"></span>
+                  I agree to the{' '}
+                  <Link to="/terms" className="terms-link">Terms of Service</Link>
+                  {' '}and{' '}
+                  <Link to="/privacy" className="terms-link">Privacy Policy</Link>
+                </label>
+              </div>
 
-                    <div className="divider">
-                      <span>or</span>
-                    </div>
+              <button 
+                type="submit" 
+                className="auth-submit-btn"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="loading-content">
+                    <span className="spinner"></span>
+                    Creating account...
+                  </span>
+                ) : (
+                  'Create Account'
+                )}
+              </button>
+            </form>
 
-                    {/* Registration Form */}
-                    <Form onSubmit={handleSubmit}>
-                      <Form.Group className="mb-3">
-                        <Form.Label>Full Name</Form.Label>
-                        <Form.Control
-                          type="text"
-                          name="name"
-                          value={formData.name}
-                          onChange={handleChange}
-                          placeholder="Enter your full name"
-                          className="modern-input"
-                          required
-                        />
-                      </Form.Group>
+            <div className="social-login">
+              <div className="divider">
+                <span>Or sign up with</span>
+              </div>
+              <div className="social-buttons">
+                <button className="social-btn google" disabled={loading}>
+                  <span className="social-icon">🔍</span>
+                  Google
+                </button>
+                <button className="social-btn github" disabled={loading}>
+                  <span className="social-icon">🐙</span>
+                  GitHub
+                </button>
+              </div>
+            </div>
 
-                      <Form.Group className="mb-3">
-                        <Form.Label>Email Address</Form.Label>
-                        <Form.Control
-                          type="email"
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          placeholder="Enter your email"
-                          className="modern-input"
-                          required
-                        />
-                      </Form.Group>
-
-                      <Form.Group className="mb-3">
-                        <Form.Label>Password</Form.Label>
-                        <Form.Control
-                          type="password"
-                          name="password"
-                          value={formData.password}
-                          onChange={handleChange}
-                          placeholder="Create a password"
-                          className="modern-input"
-                          required
-                        />
-                      </Form.Group>
-
-                      <Form.Group className="mb-3">
-                        <Form.Label>Confirm Password</Form.Label>
-                        <Form.Control
-                          type="password"
-                          name="confirmPassword"
-                          value={formData.confirmPassword}
-                          onChange={handleChange}
-                          placeholder="Confirm your password"
-                          className="modern-input"
-                          required
-                        />
-                      </Form.Group>
-
-                      <Form.Group className="mb-4">
-                        <Form.Check
-                          type="checkbox"
-                          label={
-                            <span>
-                              I agree to the <Link to="/terms">Terms of Service</Link> and{' '}
-                              <Link to="/privacy">Privacy Policy</Link>
-                            </span>
-                          }
-                          required
-                        />
-                      </Form.Group>
-
-                      <Button
-                        type="submit"
-                        className="register-btn"
-                        disabled={isLoading}
-                      >
-                        {isLoading ? (
-                          <>
-                            <span className="spinner-border spinner-border-sm me-2" />
-                            Creating Account...
-                          </>
-                        ) : (
-                          'Create Account'
-                        )}
-                      </Button>
-                    </Form>
-
-                    <div className="login-link">
-                      <p>Already have an account? <Link to="/login">Sign in here</Link></p>
-                    </div>
-                  </Card.Body>
-                </Card>
-              </Col>
-            </Row>
-          </Col>
-        </Row>
-      </Container>
-
-      <style jsx>{`
-        .register-page {
-          min-height: 100vh;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          position: relative;
-          overflow: hidden;
-        }
-        
-        .role-selection {
-          margin-bottom: 2rem;
-        }
-        
-        .role-label {
-          font-weight: 600;
-          color: #4a5568;
-        }
-        
-        .role-options {
-          display: flex;
-          gap: 1rem;
-        }
-        
-        .role-option {
-          flex: 1;
-          padding: 1rem;
-          border: 2px solid #e2e8f0;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.3s ease;
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-        
-        .role-option:hover {
-          border-color: #667eea;
-          background: #f0f4ff;
-        }
-        
-        .role-option.active {
-          border-color: #667eea;
-          background: #f0f4ff;
-          box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        .role-icon {
-          font-size: 1.5rem;
-          color: #667eea;
-        }
-        
-        .role-option h6 {
-          margin: 0;
-          font-weight: 600;
-          color: #2d3748;
-        }
-        
-        .role-option small {
-          color: #718096;
-        }
-      `}</style>
+            <div className="auth-footer">
+              <p>
+                Already have an account?{' '}
+                <Link to="/login" className="auth-link">
+                  Sign in here
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
 
 export default Register;

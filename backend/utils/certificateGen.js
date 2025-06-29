@@ -228,7 +228,7 @@ const generateCertificateHTML = (certificateData) => {
         <div class="grade-badge">Grade: ${grade}</div>
         
         <div class="header">
-          <div class="logo">LearnHub</div>
+          <div class="logo">Learn</div>
           <h1 class="title">Certificate of Completion</h1>
           <p class="subtitle">This is to certify that</p>
         </div>
@@ -257,7 +257,7 @@ const generateCertificateHTML = (certificateData) => {
         <div class="signatures">
           <div class="signature">
             <div class="signature-line"></div>
-            <div class="signature-name">LearnHub</div>
+            <div class="signature-name">Learn</div>
             <div class="signature-title">Learning Platform</div>
           </div>
           <div class="signature">

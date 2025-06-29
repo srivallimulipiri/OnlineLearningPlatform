@@ -1,183 +1,67 @@
 import React from 'react';
-import { Card, Placeholder } from 'react-bootstrap';
 
-// Course card skeleton
-export const CourseCardSkeleton = () => (
-  <Card className="h-100">
-    <Placeholder as={Card.Img} variant="top" style={{ height: '200px' }} />
-    <Card.Body>
-      <Placeholder as={Card.Title} animation="glow">
-        <Placeholder xs={8} />
-      </Placeholder>
-      <Placeholder as={Card.Text} animation="glow">
-        <Placeholder xs={6} size="sm" />
-      </Placeholder>
-      <Placeholder as={Card.Text} animation="glow">
-        <Placeholder xs={12} size="sm" />
-        <Placeholder xs={8} size="sm" />
-      </Placeholder>
-      <div className="d-flex justify-content-between align-items-center">
-        <Placeholder.Button xs={3} size="sm" />
-        <Placeholder.Button xs={4} size="sm" />
-      </div>
-    </Card.Body>
-  </Card>
-);
-
-// Dashboard stats skeleton
-export const StatsCardSkeleton = () => (
-  <Card className="text-center">
-    <Card.Body>
-      <Placeholder as="h3" animation="glow">
-        <Placeholder xs={6} />
-      </Placeholder>
-      <Placeholder as="p" animation="glow">
-        <Placeholder xs={8} />
-      </Placeholder>
-    </Card.Body>
-  </Card>
-);
-
-// Table skeleton
-export const TableSkeleton = ({ rows = 5, columns = 4 }) => (
-  <div className="table-responsive">
-    <table className="table">
-      <thead>
-        <tr>
-          {Array.from({ length: columns }).map((_, index) => (
-            <th key={index}>
-              <Placeholder animation="glow">
-                <Placeholder xs={8} />
-              </Placeholder>
-            </th>
+const LoadingSkeleton = ({ type = 'default' }) => {
+  if (type === 'dashboard') {
+    return (
+      <div className="min-h-screen bg-neutral-100 animate-pulse p-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="bg-white p-6 rounded-xl shadow-soft">
+              <div className="h-6 bg-neutral-200 rounded w-3/4 mb-4"></div>
+              <div className="h-10 bg-neutral-200 rounded w-1/2"></div>
+            </div>
           ))}
-        </tr>
-      </thead>
-      <tbody>
-        {Array.from({ length: rows }).map((_, rowIndex) => (
-          <tr key={rowIndex}>
-            {Array.from({ length: columns }).map((_, colIndex) => (
-              <td key={colIndex}>
-                <Placeholder animation="glow">
-                  <Placeholder xs={Math.floor(Math.random() * 4) + 6} />
-                </Placeholder>
-              </td>
+        </div>
+        <div className="bg-white rounded-xl shadow-soft p-8">
+          <div className="h-8 bg-neutral-200 rounded w-1/4 mb-6"></div>
+          <div className="space-y-4">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="h-5 bg-neutral-200 rounded"></div>
             ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-);
-
-// Profile skeleton
-export const ProfileSkeleton = () => (
-  <Card>
-    <Card.Body>
-      <div className="d-flex align-items-center mb-4">
-        <Placeholder
-          style={{
-            width: '80px',
-            height: '80px',
-            borderRadius: '50%',
-            marginRight: '1rem'
-          }}
-        />
-        <div>
-          <Placeholder as="h4" animation="glow">
-            <Placeholder xs={6} />
-          </Placeholder>
-          <Placeholder as="p" animation="glow">
-            <Placeholder xs={8} />
-          </Placeholder>
+          </div>
         </div>
       </div>
-      
-      <Placeholder as="p" animation="glow">
-        <Placeholder xs={12} />
-        <Placeholder xs={8} />
-        <Placeholder xs={10} />
-      </Placeholder>
-    </Card.Body>
-  </Card>
-);
+    );
+  }
 
-// Course detail skeleton
-export const CourseDetailSkeleton = () => (
-  <div>
-    <Placeholder
-      style={{ width: '100%', height: '300px', marginBottom: '2rem' }}
-    />
-    
-    <Placeholder as="h1" animation="glow">
-      <Placeholder xs={8} />
-    </Placeholder>
-    
-    <Placeholder as="p" animation="glow">
-      <Placeholder xs={6} size="sm" />
-    </Placeholder>
-    
-    <Placeholder as="p" animation="glow">
-      <Placeholder xs={12} />
-      <Placeholder xs={10} />
-      <Placeholder xs={8} />
-    </Placeholder>
-    
-    <div className="d-flex gap-3 mb-4">
-      <Placeholder.Button xs={2} />
-      <Placeholder.Button xs={2} />
-      <Placeholder.Button xs={2} />
-    </div>
-  </div>
-);
+  if (type === 'card') {
+    return (
+      <div className="bg-white rounded-xl shadow-soft overflow-hidden animate-pulse h-full flex flex-col">
+        <div className="h-48 bg-neutral-200"></div>
+        <div className="p-5 flex flex-col flex-grow">
+          <div className="h-6 bg-neutral-200 rounded w-3/4 mb-3"></div>
+          <div className="h-4 bg-neutral-200 rounded w-1/2 mb-4"></div>
+          <div className="h-4 bg-neutral-200 rounded mb-2"></div>
+          <div className="h-4 bg-neutral-200 rounded w-5/6 mb-4"></div>
+          <div className="flex justify-between items-center mt-auto pt-4 border-t border-neutral-200">
+            <div className="h-6 bg-neutral-200 rounded w-1/4"></div>
+            <div className="h-10 bg-neutral-200 rounded w-1/3"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-// Generic loading skeleton
-export const LoadingSkeleton = ({ 
-  type = 'card', 
-  count = 1, 
-  className = '' 
-}) => {
-  const renderSkeleton = () => {
-    switch (type) {
-      case 'course-card':
-        return <CourseCardSkeleton />;
-      case 'stats-card':
-        return <StatsCardSkeleton />;
-      case 'table':
-        return <TableSkeleton />;
-      case 'profile':
-        return <ProfileSkeleton />;
-      case 'course-detail':
-        return <CourseDetailSkeleton />;
-      default:
-        return (
-          <Card>
-            <Card.Body>
-              <Placeholder as={Card.Title} animation="glow">
-                <Placeholder xs={6} />
-              </Placeholder>
-              <Placeholder as={Card.Text} animation="glow">
-                <Placeholder xs={7} /> <Placeholder xs={4} />
-                <Placeholder xs={4} /> <Placeholder xs={6} />
-                <Placeholder xs={8} />
-              </Placeholder>
-            </Card.Body>
-          </Card>
-        );
-    }
-  };
-
-  if (count === 1) {
-    return <div className={className}>{renderSkeleton()}</div>;
+  if (type === 'form') {
+    return (
+      <div className="bg-white p-8 rounded-xl shadow-soft w-full max-w-md animate-pulse space-y-6">
+        <div className="h-8 bg-neutral-200 rounded w-1/2 mx-auto mb-8"></div>
+        <div className="space-y-4">
+          <div className="h-10 bg-neutral-200 rounded"></div>
+          <div className="h-10 bg-neutral-200 rounded"></div>
+          <div className="h-10 bg-neutral-200 rounded"></div>
+        </div>
+        <div className="h-12 bg-neutral-200 rounded-lg"></div>
+      </div>
+    );
   }
 
   return (
-    <div className={className}>
-      {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="mb-3">
-          {renderSkeleton()}
-        </div>
-      ))}
+    <div className="min-h-screen flex items-center justify-center bg-neutral-100">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-16 w-16 border-t-4 border-b-4 border-primary-dark mx-auto"></div>
+        <p className="mt-6 text-lg text-neutral-600">Loading content...</p>
+      </div>
     </div>
   );
 };

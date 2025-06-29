@@ -9,7 +9,13 @@ const {
   enrollInCourse,
   updateProgress,
   addReview,
-  getTeacherCourses
+  getTeacherCourses,
+  addSection,
+  updateSection,
+  deleteSection,
+  addLesson,
+  updateLesson,
+  deleteLesson
 } = require('../controllers/courseController');
 const { protect, optionalAuth } = require('../middleware/authMiddleware');
 const { requireTeacher, checkCourseOwnership } = require('../middleware/roleMiddleware');
@@ -18,12 +24,12 @@ const { courseValidation, queryValidation, paramValidation } = require('../utils
 // @desc    Get all courses with filters
 // @route   GET /api/courses
 // @access  Public
-router.get('/', queryValidation.courseFilters, queryValidation.pagination, getCourses);
+router.get('/', ...queryValidation.courseFilters, ...queryValidation.pagination, getCourses);
 
 // @desc    Get course by ID
 // @route   GET /api/courses/:id
 // @access  Public (but shows enrollment status if authenticated)
-router.get('/:id', paramValidation.mongoId, optionalAuth, getCourseById);
+router.get('/:id', ...paramValidation.mongoId, optionalAuth, getCourseById);
 
 // @desc    Create new course
 // @route   POST /api/courses
@@ -59,5 +65,35 @@ router.post('/:id/review', protect, paramValidation.mongoId, courseValidation.ad
 // @route   GET /api/courses/teacher/my-courses
 // @access  Private (Teacher only)
 router.get('/teacher/my-courses', protect, requireTeacher, queryValidation.pagination, getTeacherCourses);
+
+// @desc    Add section to course
+// @route   POST /api/courses/:id/sections
+// @access  Private (Teacher only)
+router.post('/:id/sections', protect, paramValidation.mongoId, checkCourseOwnership, courseValidation.addSection, addSection);
+
+// @desc    Update section in course
+// @route   PUT /api/courses/:id/sections/:sectionId
+// @access  Private (Teacher only)
+router.put('/:id/sections/:sectionId', protect, paramValidation.mongoId, paramValidation.sectionId, checkCourseOwnership, courseValidation.updateSection, updateSection);
+
+// @desc    Delete section from course
+// @route   DELETE /api/courses/:id/sections/:sectionId
+// @access  Private (Teacher only)
+router.delete('/:id/sections/:sectionId', protect, paramValidation.mongoId, paramValidation.sectionId, checkCourseOwnership, deleteSection);
+
+// @desc    Add lesson to section
+// @route   POST /api/courses/:id/sections/:sectionId/lessons
+// @access  Private (Teacher only)
+router.post('/:id/sections/:sectionId/lessons', protect, paramValidation.mongoId, paramValidation.sectionId, checkCourseOwnership, courseValidation.addLesson, addLesson);
+
+// @desc    Update lesson in section
+// @route   PUT /api/courses/:id/sections/:sectionId/lessons/:lessonId
+// @access  Private (Teacher only)
+router.put('/:id/sections/:sectionId/lessons/:lessonId', protect, paramValidation.mongoId, paramValidation.sectionId, paramValidation.lessonId, checkCourseOwnership, courseValidation.updateLesson, updateLesson);
+
+// @desc    Delete lesson from section
+// @route   DELETE /api/courses/:id/sections/:sectionId/lessons/:lessonId
+// @access  Private (Teacher only)
+router.delete('/:id/sections/:sectionId/lessons/:lessonId', protect, paramValidation.mongoId, paramValidation.sectionId, paramValidation.lessonId, checkCourseOwnership, deleteLesson);
 
 module.exports = router;

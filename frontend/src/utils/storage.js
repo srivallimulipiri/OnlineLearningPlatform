@@ -12,7 +12,8 @@ export const storage = {
 
   set: (key, value) => {
     try {
-      localStorage.setItem(key, JSON.stringify(value));
+      const itemToStore = value === undefined ? null : value;
+      localStorage.setItem(key, JSON.stringify(itemToStore));
       return true;
     } catch (error) {
       console.error(`Error writing to localStorage key "${key}":`, error);
@@ -53,11 +54,38 @@ export const storage = {
   }
 };
 
-// Specific storage functions for app data
+// Token storage utilities
+export const tokenStorage = {
+  getAccessToken: () => localStorage.getItem('accessToken'),
+  setAccessToken: (token) => localStorage.setItem('accessToken', token),
+  removeAccessToken: () => localStorage.removeItem('accessToken'),
+  
+  getRefreshToken: () => localStorage.getItem('refreshToken'),
+  setRefreshToken: (token) => localStorage.setItem('refreshToken', token),
+  removeRefreshToken: () => localStorage.removeItem('refreshToken'),
+};
+
+// User storage utilities
 export const userStorage = {
-  getUser: () => storage.get('user'),
-  setUser: (user) => storage.set('user', user),
-  removeUser: () => storage.remove('user'),
+  getUser: () => {
+    try {
+      const user = localStorage.getItem('user');
+      return user ? JSON.parse(user) : null;
+    } catch (error) {
+      console.error('Error parsing user data:', error);
+      return null;
+    }
+  },
+  
+  setUser: (user) => {
+    try {
+      localStorage.setItem('user', JSON.stringify(user));
+    } catch (error) {
+      console.error('Error storing user data:', error);
+    }
+  },
+  
+  removeUser: () => localStorage.removeItem('user'),
 };
 
 export const courseStorage = {

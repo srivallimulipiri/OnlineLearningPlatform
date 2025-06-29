@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useDebounce } from 'use-debounce';
-import { coursesAPI, authAPI } from '../services/api';
+import { courseAPI, authAPI } from '../services/api';
 import { courseStorage } from '../utils/storage';
 import { isCacheValid } from '../utils/api-helpers';
 import { useNotification } from './useNotification';
@@ -35,20 +35,20 @@ export const useCourses = () => {
         const cachedCourses = courseStorage.getCachedCourses();
         const lastFetch = courseStorage.getLastFetch();
 
-        if (cachedCourses.length > 0 && isCacheValid(lastFetch)) {
+        if (cachedCourses && cachedCourses.length > 0 && isCacheValid(lastFetch)) {
           setCourses(cachedCourses);
           setLoading(false);
           return { success: true, data: cachedCourses };
         }
       }
 
-      const response = await coursesAPI.getAll({ ...requestFilters, ...params });
+      const response = await courseAPI.getAll({ ...requestFilters, ...params });
       const { courses: courseData, pagination: paginationData } = response.data;
 
       if (params.page > 1) {
-        setCourses(prev => [...prev, ...courseData]);
+        setCourses(prev => [...prev, ...(courseData || [])]);
       } else {
-        setCourses(courseData);
+        setCourses(courseData || []);
       }
       
       setPagination(paginationData);
@@ -63,7 +63,7 @@ export const useCourses = () => {
     } catch (err) {
       const errorMessage = err.message || 'Failed to fetch courses';
       setError(errorMessage);
-      notify.apiError(err);
+      if (notify?.apiError) notify.apiError(err); 
       setLoading(false);
       return { success: false, error: errorMessage };
     }
@@ -91,47 +91,51 @@ export const useCourses = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await coursesAPI.enroll(courseId);
+      const response = await courseAPI.enroll(courseId);
       notify.courseEnrolled(courseTitle);
       setLoading(false);
       return { success: true, enrollment: response.data };
     } catch (err) {
       const errorMessage = err.message || 'Failed to enroll in course';
       setError(errorMessage);
-      notify.apiError(err);
+      if (notify?.apiError) notify.apiError(err); 
       setLoading(false);
       return { success: false, error: errorMessage };
     }
   }, [notify]);
 
-  const loadMore = useCallback(async () => {
-    if (pagination.page < pagination.totalPages && !loading) {
-      const nextPage = pagination.page + 1;
-      const response = await fetchCourses({ page: nextPage }, false);
-      if (response.success) {
-        setPagination(prev => ({ ...prev, page: nextPage }));
-      }
-    }
-  }, [pagination.page, pagination.totalPages, loading, fetchCourses]);
 
+  const loadMore = useCallback(async () => {
+  if (pagination?.page < pagination?.totalPages && !loading) {
+    const nextPage = pagination.page + 1;
+    const response = await fetchCourses({ page: nextPage }, false);
+    if (response.success) {
+      setPagination(prev => ({ ...prev, page: nextPage }));
+    }
+  }
+}, [pagination, loading, fetchCourses]);
+
+ 
   const fetchEnrolledCourses = useCallback(async () => {
     try {
       const response = await authAPI.getEnrolledCourses();
       setEnrolledCourses(response.data);
       return { success: true, data: response.data };
     } catch (err) {
-      notify.apiError(err);
+      if (notify?.apiError) notify.apiError(err); 
+      
       return { success: false, error: err.message };
     }
   }, [notify]);
 
   const fetchTeacherCourses = useCallback(async () => {
     try {
-      const response = await coursesAPI.getTeacherCourses();
+      const response = await courseAPI.getTeacherCourses();
       setTeacherCourses(response.data);
       return { success: true, data: response.data };
     } catch (err) {
-      notify.apiError(err);
+      if (notify?.apiError) notify.apiError(err); 
+      
       return { success: false, error: err.message };
     }
   }, [notify]);

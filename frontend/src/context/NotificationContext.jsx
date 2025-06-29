@@ -2,15 +2,6 @@ import React, { createContext, useContext, useReducer } from 'react';
 
 const NotificationContext = createContext();
 
-// Notification types
-export const NOTIFICATION_TYPES = {
-  SUCCESS: 'success',
-  ERROR: 'error',
-  WARNING: 'warning',
-  INFO: 'info'
-};
-
-// Notification reducer
 const notificationReducer = (state, action) => {
   switch (action.type) {
     case 'ADD_NOTIFICATION':
@@ -18,7 +9,6 @@ const notificationReducer = (state, action) => {
         ...state,
         notifications: [...state.notifications, action.payload]
       };
-    
     case 'REMOVE_NOTIFICATION':
       return {
         ...state,
@@ -26,35 +16,29 @@ const notificationReducer = (state, action) => {
           notification => notification.id !== action.payload
         )
       };
-    
-    case 'CLEAR_NOTIFICATIONS':
+    case 'CLEAR_ALL':
       return {
         ...state,
         notifications: []
       };
-    
     default:
       return state;
   }
 };
 
-// Initial state
 const initialState = {
   notifications: []
 };
 
-// Provider component
 export const NotificationProvider = ({ children }) => {
   const [state, dispatch] = useReducer(notificationReducer, initialState);
 
-  // Add notification
-  const addNotification = (message, type = NOTIFICATION_TYPES.INFO, duration = 5000) => {
+  const addNotification = (message, type = 'info', duration = 5000) => {
     const id = Date.now() + Math.random();
     const notification = {
       id,
       message,
       type,
-      duration,
       timestamp: new Date()
     };
 
@@ -63,45 +47,26 @@ export const NotificationProvider = ({ children }) => {
     // Auto remove after duration
     if (duration > 0) {
       setTimeout(() => {
-        removeNotification(id);
+        dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });
       }, duration);
     }
 
     return id;
   };
 
-  // Remove notification
   const removeNotification = (id) => {
     dispatch({ type: 'REMOVE_NOTIFICATION', payload: id });
   };
 
-  // Clear all notifications
-  const clearNotifications = () => {
-    dispatch({ type: 'CLEAR_NOTIFICATIONS' });
+  const clearAll = () => {
+    dispatch({ type: 'CLEAR_ALL' });
   };
-
-  // Convenience methods
-  const showSuccess = (message, duration) => 
-    addNotification(message, NOTIFICATION_TYPES.SUCCESS, duration);
-  
-  const showError = (message, duration) => 
-    addNotification(message, NOTIFICATION_TYPES.ERROR, duration);
-  
-  const showWarning = (message, duration) => 
-    addNotification(message, NOTIFICATION_TYPES.WARNING, duration);
-  
-  const showInfo = (message, duration) => 
-    addNotification(message, NOTIFICATION_TYPES.INFO, duration);
 
   const value = {
     notifications: state.notifications,
     addNotification,
     removeNotification,
-    clearNotifications,
-    showSuccess,
-    showError,
-    showWarning,
-    showInfo
+    clearAll
   };
 
   return (
@@ -111,7 +76,6 @@ export const NotificationProvider = ({ children }) => {
   );
 };
 
-// Hook to use notification context
 export const useNotification = () => {
   const context = useContext(NotificationContext);
   if (!context) {
@@ -119,3 +83,5 @@ export const useNotification = () => {
   }
   return context;
 };
+
+export default NotificationContext;

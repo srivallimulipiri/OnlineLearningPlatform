@@ -1,10 +1,10 @@
 const express = require('express');
-const cors =require('cors');
+const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-
 require('dotenv').config();
+require('colors');
 
 // Import database connection
 const connectDB = require('./config/db');
@@ -14,10 +14,8 @@ const { errorHandler, notFound } = require('./middleware/errorMiddleware');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
-const courseRoutes = require('./routes/courseRoutes');
-const userRoutes = require('./routes/userRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-const uploadRoutes = require('./routes/uploadRoutes');
+
+const courseRoutes = require('./routes/courseRoutes');  // ✅ Add this
 
 // Initialize Express app
 const app = express();
@@ -36,20 +34,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: (process.env.RATE_LIMIT_WINDOW || 15) * 60 * 1000,
-  max: process.env.RATE_LIMIT_MAX || 100,
-  message: {
-    error: 'Too many requests from this IP, please try again later.'
-  }
-});
-
-// Apply rate limiting only in production
-if (process.env.NODE_ENV === 'production') {
-  app.use('/api/', limiter);
-}
-
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -59,28 +43,26 @@ if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
 
-// Static files
-app.use('/uploads', express.static('uploads'));
-
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'success',
     message: 'OLP Backend API is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
+    timestamp: new Date().toISOString()
   });
 });
 
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/courses', courseRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/admin', adminRoutes);
-app.use('/api/upload', uploadRoutes);
+app.use('/api/courses', courseRoutes);                 // ✅ Mount the course routes
 
 // 404 Not Found handler
 app.use(notFound);
+// backend/index.js (Add this line with other routes)
+const testRoutes = require('./routes/testRoutes');
+
+// Add this with your other route definitions
+app.use('/api/test', testRoutes);
 
 // Global error handling middleware
 app.use(errorHandler);
@@ -88,12 +70,13 @@ app.use(errorHandler);
 // Start server
 const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`.yellow.bold);
+  console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`.yellow.bold);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.log(`Error: ${err.message}`.red);
-  // Close server & exit process
-  server.close(() => process.exit(1));
+  server.close(() => {
+    process.exit(1);
+  });
 });

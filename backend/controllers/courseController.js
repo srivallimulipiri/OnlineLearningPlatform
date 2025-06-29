@@ -341,6 +341,8 @@ const getTeacherCourses = asyncHandler(async (req, res) => {
   const { page = 1, limit = 10 } = req.query;
   const skip = (page - 1) * limit;
 
+  console.log(`Fetching courses for instructor ID: ${req.user._id}`);
+
   const courses = await Course.find({ instructor: req.user._id })
     .sort({ createdAt: -1 })
     .skip(skip)
@@ -348,6 +350,9 @@ const getTeacherCourses = asyncHandler(async (req, res) => {
     .populate('enrolledStudents', 'name email');
 
   const total = await Course.countDocuments({ instructor: req.user._id });
+
+  console.log(`Found ${courses.length} courses for instructor ${req.user._id}. Total count: ${total}`);
+  console.log('Courses data:', courses);
 
   res.json({
     status: 'success',
@@ -363,6 +368,206 @@ const getTeacherCourses = asyncHandler(async (req, res) => {
   });
 });
 
+// Add section to course
+const addSection = asyncHandler(async (req, res) => {
+  const { title, description, order } = req.body;
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check course ownership (already handled by checkCourseOwnership middleware)
+
+  const newSection = {
+    title,
+    description,
+    order: order !== undefined ? order : course.sections.length
+  };
+
+  course.sections.push(newSection);
+  await course.save();
+
+  res.status(201).json({
+    status: 'success',
+    data: course.sections[course.sections.length - 1] // Return the newly added section
+  });
+});
+
+// Update section in course
+const updateSection = asyncHandler(async (req, res) => {
+  const { sectionId } = req.params;
+  const { title, description, order } = req.body;
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check course ownership (already handled by checkCourseOwnership middleware)
+
+  const section = course.sections.id(sectionId);
+  if (!section) {
+    res.status(404);
+    throw new Error('Section not found');
+  }
+
+  if (title !== undefined) section.title = title;
+  if (description !== undefined) section.description = description;
+  if (order !== undefined) section.order = order;
+
+  await course.save();
+
+  res.json({
+    status: 'success',
+    data: section
+  });
+});
+
+// Delete section from course
+const deleteSection = asyncHandler(async (req, res) => {
+  const { sectionId } = req.params;
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check course ownership (already handled by checkCourseOwnership middleware)
+
+  const section = course.sections.id(sectionId);
+  if (!section) {
+    res.status(404);
+    throw new Error('Section not found');
+  }
+
+  section.deleteOne(); // Use deleteOne() for subdocuments
+  await course.save();
+
+  res.json({
+    status: 'success',
+    message: 'Section deleted successfully'
+  });
+});
+
+// Add lesson to section
+const addLesson = asyncHandler(async (req, res) => {
+  const { sectionId } = req.params;
+  const { title, description, videoUrl, duration, resources, isPreview, order } = req.body;
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check course ownership (already handled by checkCourseOwnership middleware)
+
+  const section = course.sections.id(sectionId);
+  if (!section) {
+    res.status(404);
+    throw new Error('Section not found');
+  }
+
+  const newLesson = {
+    title,
+    description,
+    videoUrl,
+    duration,
+    resources: resources || [],
+    isPreview: isPreview || false,
+    order: order !== undefined ? order : section.lessons.length
+  };
+
+  section.lessons.push(newLesson);
+  await course.save();
+  await course.calculateTotalDuration(); // Recalculate total course duration
+
+  res.status(201).json({
+    status: 'success',
+    data: section.lessons[section.lessons.length - 1] // Return the newly added lesson
+  });
+});
+
+// Update lesson in section
+const updateLesson = asyncHandler(async (req, res) => {
+  const { sectionId, lessonId } = req.params;
+  const { title, description, videoUrl, duration, resources, isPreview, order } = req.body;
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check course ownership (already handled by checkCourseOwnership middleware)
+
+  const section = course.sections.id(sectionId);
+  if (!section) {
+    res.status(404);
+    throw new Error('Section not found');
+  }
+
+  const lesson = section.lessons.id(lessonId);
+  if (!lesson) {
+    res.status(404);
+    throw new Error('Lesson not found');
+  }
+
+  if (title !== undefined) lesson.title = title;
+  if (description !== undefined) lesson.description = description;
+  if (videoUrl !== undefined) lesson.videoUrl = videoUrl;
+  if (duration !== undefined) lesson.duration = duration;
+  if (resources !== undefined) lesson.resources = resources;
+  if (isPreview !== undefined) lesson.isPreview = isPreview;
+  if (order !== undefined) lesson.order = order;
+
+  await course.save();
+  await course.calculateTotalDuration(); // Recalculate total course duration
+
+  res.json({
+    status: 'success',
+    data: lesson
+  });
+});
+
+// Delete lesson from section
+const deleteLesson = asyncHandler(async (req, res) => {
+  const { sectionId, lessonId } = req.params;
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check course ownership (already handled by checkCourseOwnership middleware)
+
+  const section = course.sections.id(sectionId);
+  if (!section) {
+    res.status(404);
+    throw new Error('Section not found');
+  }
+
+  const lesson = section.lessons.id(lessonId);
+  if (!lesson) {
+    res.status(404);
+    throw new Error('Lesson not found');
+  }
+
+  lesson.deleteOne(); // Use deleteOne() for subdocuments
+  await course.save();
+  await course.calculateTotalDuration(); // Recalculate total course duration
+
+  res.json({
+    status: 'success',
+    message: 'Lesson deleted successfully'
+  });
+});
+
 module.exports = {
   getCourses,
   getCourseById,
@@ -372,5 +577,11 @@ module.exports = {
   enrollInCourse,
   updateProgress,
   addReview,
-  getTeacherCourses
+  getTeacherCourses,
+  addSection,
+  updateSection,
+  deleteSection,
+  addLesson,
+  updateLesson,
+  deleteLesson
 };

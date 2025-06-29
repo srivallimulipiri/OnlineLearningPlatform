@@ -1,95 +1,163 @@
-import { Container, Row, Col, Card, Button, Table } from 'react-bootstrap'
+import React, { useState, useEffect, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import StatsCard from '../components/StatsCard';
+import {
+  FaBook,
+  FaUserGraduate,
+  FaDollarSign,
+  FaStar,
+  FaPlusCircle,
+} from 'react-icons/fa';
+import { useAuth } from '../hooks/useAuth';
+import { courseAPI } from '../services/api';
+import LoadingSkeleton from '../components/LoadingSkeleton';
+import Toast from '../components/Toast';
+import './DashboardTeacher.css';
 
 function DashboardTeacher() {
-  const myCourses = [
-    { id: 1, title: "React Fundamentals", students: 1200, revenue: 5880, status: "Published" },
-    { id: 2, title: "Advanced React", students: 450, revenue: 3150, status: "Draft" }
-  ]
+  const { user } = useAuth();
+  const [courses, setCourses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [toast, setToast] = useState({ show: false, message: '', type: '' });
+
+  const fetchTeacherCourses = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await courseAPI.getTeacherCourses();
+      setCourses(response.data.data.courses);
+    } catch (err) {
+      console.error('Failed to fetch teacher courses:', err);
+      setError('Failed to load courses. Please try again.');
+      setToast({ show: true, message: 'Failed to load courses.', type: 'error' });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTeacherCourses();
+  }, [fetchTeacherCourses]);
+
+  const handleDeleteCourse = async (courseId) => {
+    if (window.confirm('Are you sure you want to delete this course? This action cannot be undone.')) {
+      try {
+        await courseAPI.delete(courseId);
+        setToast({ show: true, message: 'Course deleted successfully!', type: 'success' });
+        fetchTeacherCourses(); // Refresh the list
+      } catch (err) {
+        console.error('Failed to delete course:', err);
+        const message = err.response?.data?.message || 'Failed to delete course.';
+        setError(message);
+        setToast({ show: true, message: message, type: 'error' });
+      }
+    }
+  };
+
+  const totalStudents = courses.reduce((sum, course) => sum + (course.enrolledStudents?.length || 0), 0);
+  const totalRevenue = courses.reduce((sum, course) => sum + (course.price * (course.enrolledStudents?.length || 0)), 0);
+  const avgRating = courses.length > 0 ? (courses.reduce((sum, course) => sum + course.rating, 0) / courses.length).toFixed(1) : 0;
+
+  if (loading) {
+    return <LoadingSkeleton type="dashboard" />;
+  }
+
+  if (error) {
+    return <div className="error-message">{error}</div>;
+  }
 
   return (
-    <Container className="py-4">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h1>Teacher Dashboard</h1>
-        <Button variant="primary">Create New Course</Button>
+    <div className="teacher-dashboard">
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ ...toast, show: false })}
+        />
+      )}
+      {/* Top Section */}
+      <div className="dashboard-top">
+        <div>
+          <h1 className="dashboard-heading">Welcome back, {user?.name.split(' ')[0]} 👋</h1>
+          <p className="dashboard-subtext">Keep up the great work. Your students are thriving!</p>
+        </div>
+        <Link to="/create-course" className="btn-create-course">
+          <FaPlusCircle /> New Course
+        </Link>
       </div>
-      
-      <Row className="mb-4">
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-primary">2</h3>
-              <p>Total Courses</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-success">1,650</h3>
-              <p>Total Students</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-info">$9,030</h3>
-              <p>Total Revenue</p>
-            </Card.Body>
-          </Card>
-        </Col>
-        <Col md={3}>
-          <Card className="text-center">
-            <Card.Body>
-              <h3 className="text-warning">4.6</h3>
-              <p>Avg Rating</p>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
 
-      <Card>
-        <Card.Header>
-          <h3>My Courses</h3>
-        </Card.Header>
-        <Card.Body>
-          <Table responsive>
+      {/* Stats Section */}
+      <div className="dashboard-stats">
+        <StatsCard 
+          title="Total Courses" 
+          value={courses.length}
+          icon={<FaBook />}
+          color="primary"
+        />
+        <StatsCard 
+          title="Total Students" 
+          value={totalStudents.toLocaleString()}
+          icon={<FaUserGraduate />}
+          color="success"
+        />
+        <StatsCard 
+          title="Total Revenue" 
+          value={`${totalRevenue.toLocaleString()}`}
+          icon={<FaDollarSign />}
+          color="info"
+        />
+        <StatsCard 
+          title="Avg Rating" 
+          value={avgRating}
+          icon={<FaStar />}
+          color="warning"
+        />
+      </div>
+
+      {/* Courses Table */}
+      <div className="dashboard-courses">
+        <h2>My Courses</h2>
+        <div className="table-wrapper">
+          <table className="courses-table">
             <thead>
               <tr>
                 <th>Course Title</th>
                 <th>Students</th>
-                <th>Revenue</th>
+                <th>Price</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {myCourses.map(course => (
-                <tr key={course.id}>
-                  <td>{course.title}</td>
-                  <td>{course.students}</td>
-                  <td>${course.revenue}</td>
-                  <td>
-                    <span className={`badge bg-${course.status === 'Published' ? 'success' : 'warning'}`}>
-                      {course.status}
-                    </span>
-                  </td>
-                  <td>
-                    <Button variant="outline-primary" size="sm" className="me-2">
-                      Edit
-                    </Button>
-                    <Button variant="outline-info" size="sm">
-                      View
-                    </Button>
-                  </td>
+              {courses.length === 0 ? (
+                <tr>
+                  <td colSpan="5" className="text-center py-4">You haven't created any courses yet.</td>
                 </tr>
-              ))}
+              ) : (
+                courses.map(course => (
+                  <tr key={course._id}>
+                    <td>{course.title}</td>
+                    <td>{course.enrolledStudents?.length || 0}</td>
+                    <td>${course.price.toLocaleString()}</td>
+                    <td>
+                      <span className={`badge ${course.isPublished ? 'published' : 'draft'}`}>
+                        {course.isPublished ? 'Published' : 'Draft'}
+                      </span>
+                    </td>
+                    <td className="table-actions">
+                      <Link to={`/teacher/courses/${course._id}/edit`} className="edit-link">Edit</Link>
+                      <button onClick={() => handleDeleteCourse(course._id)} className="delete-link">Delete</button>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
-          </Table>
-        </Card.Body>
-      </Card>
-    </Container>
-  )
+          </table>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-export default DashboardTeacher
+export default DashboardTeacher;

@@ -11,6 +11,8 @@ import Analytics from './pages/Analytics'
 import DashboardStudent from './pages/DashboardStudent'
 import DashboardTeacher from './pages/DashboardTeacher'
 import DashboardAdmin from './pages/DashboardAdmin'
+import Dashboard from './pages/Dashboard'
+import EditCourse from './pages/EditCourse'
 
 import ProtectedRoute, { AdminRoute, TeacherRoute, PublicRoute } from './components/ProtectedRoute'
 
@@ -29,16 +31,17 @@ function AppRoutes() {
       {/* Protected Routes */}
       <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
       <Route path="/my-courses" element={<ProtectedRoute><MyCourses /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       
       {/* Student Routes */}
-      <Route path="/dashboard/student" element={<ProtectedRoute requiredRoles={['student', 'teacher', 'admin']}><DashboardStudent /></ProtectedRoute>} />
+      <Route path="/student-dashboard" element={<StudentRoute><DashboardStudent /></StudentRoute>} />
       
       {/* Teacher Routes */}
-      <Route path="/dashboard/teacher" element={<TeacherRoute><DashboardTeacher /></TeacherRoute>} />
       <Route path="/create-course" element={<TeacherRoute><CreateCourse /></TeacherRoute>} />
+      <Route path="/teacher/courses/:id/edit" element={<TeacherRoute><EditCourse /></TeacherRoute>} />
       
       {/* Admin Routes */}
-      <Route path="/dashboard/admin" element={<AdminRoute><DashboardAdmin /></AdminRoute>} />
+      <Route path="/admin-dashboard" element={<AdminRoute><DashboardAdmin /></AdminRoute>} />
       <Route path="/analytics" element={<AdminRoute><Analytics /></AdminRoute>} />
     </Routes>
   )

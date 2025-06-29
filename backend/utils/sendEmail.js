@@ -67,10 +67,10 @@ const emailTemplates = {
             <p><a href="${verificationUrl}">${verificationUrl}</a></p>
             <p>This verification link will expire in 24 hours.</p>
             <p>If you didn't create an account with LearnHub, please ignore this email.</p>
-            <p>Happy learning!<br>The LearnHub Team</p>
+            <p>Happy learning!<br>The Learn Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 LearnHub. All rights reserved.</p>
+            <p>&copy; 2024 Learn. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -121,13 +121,13 @@ const emailTemplates = {
             <p>Best regards,<br>The LearnHub Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 LearnHub. All rights reserved.</p>
+            <p>&copy; 2024 Learn. All rights reserved.</p>
           </div>
         </div>
       </body>
       </html>
     `,
-    text: `Reset your LearnHub password by visiting: ${resetUrl}`
+    text: `Reset your Learn password by visiting: ${resetUrl}`
   }),
 
   // Course enrollment confirmation
@@ -168,10 +168,10 @@ const emailTemplates = {
               <li>Engage with the course materials</li>
               <li>Don't hesitate to revisit difficult concepts</li>
             </ul>
-            <p>Happy learning!<br>The LearnHub Team</p>
+            <p>Happy learning!<br>The Learn Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 LearnHub. All rights reserved.</p>
+            <p>&copy; 2024 Learn. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -218,11 +218,11 @@ const emailTemplates = {
               <li>Explore more courses to continue learning</li>
               <li>Leave a review to help other learners</li>
             </ul>
-            <p>Thank you for choosing LearnHub for your learning journey!</p>
-            <p>Keep learning and growing!<br>The LearnHub Team</p>
+            <p>Thank you for choosing Learn for your learning journey!</p>
+            <p>Keep learning and growing!<br>The Learn Team</p>
           </div>
           <div class="footer">
-            <p>&copy; 2024 LearnHub. All rights reserved.</p>
+            <p>&copy; 2024 Learn. All rights reserved.</p>
           </div>
         </div>
       </body>

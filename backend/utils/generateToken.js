@@ -1,3 +1,5 @@
+// backend/utils/generateToken.js
+
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 
@@ -22,7 +24,7 @@ const generateRefreshToken = (payload) => {
 // Generate both tokens
 const generateTokenPair = (user) => {
   const payload = {
-    id: user._id,
+    userId: user._id,
     email: user.email,
     role: user.role,
     name: user.name
@@ -117,15 +119,29 @@ const generateEmailVerificationToken = () => {
   };
 };
 
-module.exports = {
-  generateAccessToken,
-  generateRefreshToken,
-  generateTokenPair,
-  verifyAccessToken,
-  verifyRefreshToken,
-  generateRandomToken,
-  generateOTP,
-  hashToken,
-  generatePasswordResetToken,
-  generateEmailVerificationToken
+// Updated function to include role and name in the payload
+const generateToken = (user) => {
+  const payload = {
+    userId: user._id,
+    name: user.name,
+    role: user.role,
+  };
+  return jwt.sign(payload, process.env.JWT_SECRET || 'fallback-secret-key', {
+    expiresIn: process.env.JWT_EXPIRE || '7d',
+  });
 };
+
+// Export as default for authController compatibility
+module.exports = generateToken;
+
+// Also export the other token-related functions by attaching them to the main export
+module.exports.generateAccessToken = generateAccessToken;
+module.exports.generateRefreshToken = generateRefreshToken;
+module.exports.generateTokenPair = generateTokenPair;
+module.exports.verifyAccessToken = verifyAccessToken;
+module.exports.verifyRefreshToken = verifyRefreshToken;
+module.exports.generateRandomToken = generateRandomToken;
+module.exports.generateOTP = generateOTP;
+module.exports.hashToken = hashToken;
+module.exports.generatePasswordResetToken = generatePasswordResetToken;
+module.exports.generateEmailVerificationToken = generateEmailVerificationToken;

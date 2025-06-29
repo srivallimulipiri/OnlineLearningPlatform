@@ -1,7 +1,8 @@
-import { Card, Button, Badge } from 'react-bootstrap';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { formatCurrency } from '../utils/helpers';
 import ProgressBar from './ProgressBar';
+import { FaStar, FaUserGraduate, FaClock, FaPlay, FaBookmark, FaHeart } from 'react-icons/fa';
 
 function CourseCard({ course, showProgress = false, onEnroll, loading = false }) {
   const {
@@ -28,171 +29,141 @@ function CourseCard({ course, showProgress = false, onEnroll, loading = false })
     }
   };
 
+  const getLevelColor = (level) => {
+    switch (level?.toLowerCase()) {
+      case 'beginner':
+        return 'bg-secondary-100 text-secondary-800';
+      case 'intermediate':
+        return 'bg-accent-100 text-accent-800';
+      case 'advanced':
+        return 'bg-danger-100 text-danger-800';
+      default:
+        return 'bg-neutral-100 text-neutral-800';
+    }
+  };
+
   return (
-    <Card className="course-card h-100 shadow-sm">
-      <div className="course-image-container">
-        <Card.Img 
-          variant="top" 
-          src={image || `https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=400&h=250&fit=crop`}
-          className="course-image"
-          style={{ height: '200px', objectFit: 'cover' }}
+    <div className="course-card group">
+      {/* Course Image */}
+      <div className="course-card-image relative">
+        <img
+          src={image || `https://source.unsplash.com/random/400x250?education,${id}`}
+          alt={title}
+          className="w-full h-full object-cover"
         />
-        <div className="course-overlay">
-          <Badge bg="primary" className="category-badge">
+        
+        {/* Overlay on Hover */}
+        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 flex items-center justify-center">
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+            <Link
+              to={`/course/${id}`}
+              className="bg-white bg-opacity-90 backdrop-blur-sm rounded-full p-4 hover:bg-opacity-100 transition-all duration-200"
+            >
+              <FaPlay className="text-primary-600 text-xl" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Top Badges */}
+        <div className="absolute top-4 left-4 flex flex-wrap gap-2">
+          <span className="bg-white bg-opacity-90 backdrop-blur-sm text-primary-700 text-xs font-semibold px-3 py-1 rounded-full">
             {category}
-          </Badge>
-          <Badge 
-            bg={level === 'Beginner' ? 'success' : level === 'Intermediate' ? 'warning' : 'danger'} 
-            className="level-badge"
-          >
+          </span>
+          <span className={`text-xs font-semibold px-3 py-1 rounded-full ${getLevelColor(level)}`}>
             {level}
-          </Badge>
+          </span>
+        </div>
+
+        {/* Bookmark Icon */}
+        <button className="absolute top-4 right-4 p-2 bg-white bg-opacity-90 backdrop-blur-sm rounded-full hover:bg-opacity-100 transition-all duration-200">
+          <FaBookmark className="text-neutral-600 text-sm" />
+        </button>
+
+        {/* Price Badge */}
+        <div className="absolute bottom-4 right-4">
+          <span className="bg-white bg-opacity-90 backdrop-blur-sm text-neutral-800 font-bold px-3 py-1 rounded-full text-sm">
+            {price === 0 ? 'Free' : formatCurrency(price)}
+          </span>
         </div>
       </div>
 
-      <Card.Body className="d-flex flex-column">
-        <div className="course-header mb-2">
-          <Card.Title className="course-title h6 mb-1">{title}</Card.Title>
-          <Card.Text className="instructor-name text-muted small mb-2">
-            by {instructor}
-          </Card.Text>
-        </div>
+      {/* Course Content */}
+      <div className="course-card-content">
+        {/* Course Title */}
+        <h3 className="text-xl font-bold text-neutral-800 mb-2 line-clamp-2 group-hover:text-primary-600 transition-colors duration-200">
+          {title}
+        </h3>
 
-        <Card.Text className="course-description flex-grow-1 small text-muted">
+        {/* Instructor */}
+        <p className="text-sm text-neutral-600 mb-3 font-medium">by {instructor}</p>
+
+        {/* Description */}
+        <p className="text-neutral-700 text-sm mb-4 line-clamp-2 leading-relaxed">
           {description}
-        </Card.Text>
+        </p>
 
+        {/* Progress Bar for Enrolled Courses */}
         {showProgress && isEnrolled && (
-          <div className="course-progress mb-3">
-            <ProgressBar progress={progress} size="sm" />
+          <div className="mb-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs font-medium text-neutral-600">Progress</span>
+              <span className="text-xs font-bold text-primary-600">{progress}%</span>
+            </div>
+            <ProgressBar progress={progress} variant="primary" size="sm" showLabel={false} />
           </div>
         )}
 
-        <div className="course-meta mb-3">
-          <div className="d-flex justify-content-between align-items-center text-muted small">
-            <span>⭐ {rating} ({studentsCount} students)</span>
-            <span>🕒 {duration}</span>
+        {/* Course Stats */}
+        <div className="flex items-center justify-between text-neutral-600 text-sm mb-6">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-1">
+              <FaStar className="text-accent-500 text-xs" />
+              <span className="font-medium">{rating}</span>
+              <span className="text-neutral-400">({studentsCount})</span>
+            </div>
+            <div className="flex items-center space-x-1">
+              <FaClock className="text-primary-500 text-xs" />
+              <span>{duration}</span>
+            </div>
           </div>
         </div>
 
-        <div className="course-footer">
-          <div className="d-flex justify-content-between align-items-center">
-            <div className="course-price">
-              <span className="price-text fw-bold">
-                {price === 0 ? (
-                  <span className="text-success">Free</span>
+        {/* Action Buttons */}
+        <div className="flex items-center justify-between mt-auto">
+          {isEnrolled ? (
+            <Link
+              to={`/course/${id}`}
+              className="flex-1 bg-gradient-to-r from-secondary-500 to-secondary-600 text-white px-4 py-3 rounded-xl font-semibold hover:from-secondary-600 hover:to-secondary-700 transition-all duration-200 text-center shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+            >
+              Continue Learning
+            </Link>
+          ) : (
+            <div className="flex space-x-3 w-full">
+              <Link
+                to={`/course/${id}`}
+                className="flex-1 border-2 border-primary-500 text-primary-600 px-4 py-3 rounded-xl font-semibold hover:bg-primary-50 transition-all duration-200 text-center"
+              >
+                Preview
+              </Link>
+              <button
+                onClick={handleEnroll}
+                disabled={loading}
+                className="flex-1 bg-gradient-to-r from-primary-500 to-primary-600 text-white px-4 py-3 rounded-xl font-semibold hover:from-primary-600 hover:to-primary-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:transform-none"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    <span>Enrolling...</span>
+                  </div>
                 ) : (
-                  <span className="text-primary">{formatCurrency(price)}</span>
+                  'Enroll Now'
                 )}
-              </span>
+              </button>
             </div>
-
-            <div className="course-actions">
-              {isEnrolled ? (
-                <Button 
-                  as={Link} 
-                  to={`/course/${id}`} 
-                  variant="success" 
-                  size="sm"
-                  className="action-btn"
-                >
-                  Continue
-                </Button>
-              ) : (
-                <div className="d-flex gap-2">
-                  <Button 
-                    as={Link} 
-                    to={`/course/${id}`} 
-                    variant="outline-primary" 
-                    size="sm"
-                    className="action-btn"
-                  >
-                    View
-                  </Button>
-                  <Button 
-                    variant="primary" 
-                    size="sm"
-                    onClick={handleEnroll}
-                    disabled={loading}
-                    className="action-btn"
-                  >
-                    {loading ? 'Enrolling...' : 'Enroll'}
-                  </Button>
-                </div>
-              )}
-            </div>
-          </div>
+          )}
         </div>
-      </Card.Body>
-
-      <style jsx>{`
-        .course-card {
-          transition: all 0.3s ease;
-          border: none;
-          border-radius: 12px;
-          overflow: hidden;
-        }
-        
-        .course-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15) !important;
-        }
-        
-        .course-image-container {
-          position: relative;
-          overflow: hidden;
-        }
-        
-        .course-image {
-          transition: transform 0.3s ease;
-        }
-        
-        .course-card:hover .course-image {
-          transform: scale(1.05);
-        }
-        
-        .course-overlay {
-          position: absolute;
-          top: 12px;
-          left: 12px;
-          right: 12px;
-          display: flex;
-          justify-content: space-between;
-        }
-        
-        .category-badge, .level-badge {
-          backdrop-filter: blur(10px);
-          background: rgba(255, 255, 255, 0.9) !important;
-          color: #333 !important;
-          font-size: 0.7rem;
-        }
-        
-        .course-title {
-          color: #2d3748;
-          font-weight: 600;
-          line-height: 1.3;
-        }
-        
-        .instructor-name {
-          font-size: 0.85rem;
-        }
-        
-        .course-description {
-          font-size: 0.9rem;
-          line-height: 1.4;
-        }
-        
-        .action-btn {
-          border-radius: 6px;
-          font-weight: 500;
-          padding: 6px 12px;
-        }
-        
-        .price-text {
-          font-size: 1.1rem;
-        }
-      `}</style>
-    </Card>
+      </div>
+    </div>
   );
 }
 

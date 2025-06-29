@@ -1,11 +1,8 @@
 const mongoose = require('mongoose');
 
-
 const connectDB = async () => {
   try {
-    // Deprecated options have been removed
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-
+    const conn = await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/online-learning-platform');
     console.log(`MongoDB Connected: ${conn.connection.host}`.cyan.underline);
     
     // Handle connection events

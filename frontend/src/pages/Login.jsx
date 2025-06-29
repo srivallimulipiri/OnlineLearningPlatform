@@ -1,184 +1,245 @@
-import { useState, useEffect } from 'react';
-import { Container, Row, Col, Alert } from 'react-bootstrap';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import AuthForm from '../components/AuthForm';
-import LoadingSkeleton from '../components/LoadingSkeleton';
+// src/pages/Login.jsx
+import React, { useState } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { FaGoogle, FaGithub } from 'react-icons/fa';
+import api from '../services/api';
+import './Auth.css';
 
-function Login() {
-  const { login, loading, error, isAuthenticated, user } = useAuth();
-  const [loginError, setLoginError] = useState('');
-  const location = useLocation();
+const Login = () => {
+  const { setUser } = useAuth();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+    rememberMe: false
+  });
 
-  // Get the intended destination from location state
-  const from = location.state?.from || '/';
+  const handleChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
+  };
 
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (isAuthenticated && user) {
-      const dashboardRoute = user.role === 'admin' 
-        ? '/dashboard/admin' 
-        : user.role === 'teacher' 
-          ? '/dashboard/teacher' 
-          : '/dashboard/student';
-      
-      navigate(from === '/' ? dashboardRoute : from, { replace: true });
-    }
-  }, [isAuthenticated, user, navigate, from]);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
 
-  const handleLogin = async (formData) => {
-    setLoginError('');
-    
     try {
-      const result = await login({
+      const response = await api.post('/auth/login', {
         email: formData.email,
-        password: formData.password
+        password: formData.password,
       });
-
-      if (!result.success) {
-        setLoginError(result.error || 'Login failed');
-      }
-      // Success case is handled by useAuth hook (auto-redirect)
+      login(response.data);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
-      setLoginError(err.message || 'An unexpected error occurred');
+      console.error('Login error:', err);
+      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSocialLogin = (provider) => {
-    // TODO: Implement social login
-    console.log(`Login with ${provider} - Coming soon!`);
-    setLoginError(`${provider} login is not yet implemented`);
-  };
+  const handleDemoLogin = async (role) => {
+    setLoading(true);
+    setError('');
+    
+    const demoCredentials = {
+      student: { email: 'student@demo.com', password: 'demo123' },
+      teacher: { email: 'teacher@demo.com', password: 'demo123' },
+      admin: { email: 'admin@demo.com', password: 'demo123' }
+    };
 
-  // Show loading skeleton while checking authentication
-  if (loading && !loginError) {
-    return (
-      <div className="login-page">
-        <Container>
-          <Row className="justify-content-center">
-            <Col md={6} lg={4}>
-              <LoadingSkeleton type="card" />
-            </Col>
-          </Row>
-        </Container>
-      </div>
-    );
-  }
+    try {
+      const response = await api.post('/auth/login', demoCredentials[role]);
+      login(response.data);
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      setError('Demo login failed. Please try manual login.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
-    <div className="login-page">
-      <Container fluid className="login-container">
-        <Row className="min-vh-100 align-items-center justify-content-center">
-          <Col lg={10} xl={8}>
-            <Row className="login-card-wrapper">
-              {/* Left Side - Branding */}
-              <Col lg={6} className="login-brand-side">
-                <div className="brand-content">
-                  <div className="brand-logo">
-                    <h1>LearnHub</h1>
-                  </div>
-                  <h2>Welcome Back!</h2>
-                  <p>Continue your learning journey with thousands of courses and expert instructors.</p>
-                  
-                  <div className="feature-highlights">
-                    <div className="feature-item">
-                      <span className="feature-icon">🎓</span>
-                      <span>Expert-led courses</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">📱</span>
-                      <span>Learn anywhere, anytime</span>
-                    </div>
-                    <div className="feature-item">
-                      <span className="feature-icon">🏆</span>
-                      <span>Get certified</span>
-                    </div>
-                  </div>
-                </div>
-              </Col>
+    <div className="auth-page">
+      <div className="auth-container">
+        {/* Left Side - Branding */}
+        <div className="auth-brand-side">
+          <div className="brand-content">
+            <div className="brand-logo">
+              <span className="brand-icon">🎓</span>
+              <h1>SkillSphere</h1>
+            </div>
+            <h2 className="brand-tagline">Welcome Back!</h2>
+            <p className="brand-description">
+              Continue your learning journey with thousands of courses and expert instructors.
+            </p>
+            
+            <div className="feature-highlights">
+              <div className="feature-item">
+                <span className="feature-icon">📚</span>
+                <span>Access to 500+ courses</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">🏆</span>
+                <span>Industry-recognized certificates</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">👥</span>
+                <span>Join 50,000+ learners</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">⚡</span>
+                <span>Learn at your own pace</span>
+              </div>
+            </div>
 
-              {/* Right Side - Login Form */}
-              <Col lg={6} className="login-form-side">
-                <div className="login-form-card">
-                  <div className="text-center mb-4">
-                    <h3 className="login-title">Sign In</h3>
-                    <p className="login-subtitle">Enter your credentials to access your account</p>
-                  </div>
+            <div className="demo-section">
+              <p className="demo-title">Try Demo Accounts:</p>
+              <div className="demo-buttons">
+                <button 
+                  onClick={() => handleDemoLogin('student')}
+                  className="demo-btn student"
+                  disabled={loading}
+                >
+                  Student Demo
+                </button>
+                <button 
+                  onClick={() => handleDemoLogin('teacher')}
+                  className="demo-btn teacher"
+                  disabled={loading}
+                >
+                  Teacher Demo
+                </button>
+                <button 
+                  onClick={() => handleDemoLogin('admin')}
+                  className="demo-btn admin"
+                  disabled={loading}
+                >
+                  Admin Demo
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
 
-                  {/* Error Alert */}
-                  {(loginError || error) && (
-                    <Alert variant="danger" className="mb-4">
-                      {loginError || error}
-                    </Alert>
-                  )}
+        {/* Right Side - Login Form */}
+        <div className="auth-form-side">
+          <div className="auth-form-container">
+            <div className="form-header">
+              <h2>Sign In</h2>
+              <p>Enter your credentials to access your account</p>
+            </div>
 
-                  {/* Return URL Info */}
-                  {from !== '/' && (
-                    <Alert variant="info" className="mb-4">
-                      Please log in to access {from}
-                    </Alert>
-                  )}
+            {error && (
+              <div className="error-message">
+                <span className="error-icon">⚠️</span>
+                {error}
+              </div>
+            )}
 
-                  {/* Social Login Buttons */}
-                  <div className="social-login-section mb-4">
-                    <button 
-                      className="btn btn-outline-secondary social-btn google-btn w-100 mb-2"
-                      onClick={() => handleSocialLogin('Google')}
-                      disabled={loading}
-                    >
-                      <FaGoogle className="me-2" />
-                      Continue with Google
-                    </button>
-                    <button 
-                      className="btn btn-outline-secondary social-btn github-btn w-100"
-                      onClick={() => handleSocialLogin('GitHub')}
-                      disabled={loading}
-                    >
-                      <FaGithub className="me-2" />
-                      Continue with GitHub
-                    </button>
-                  </div>
-
-                  <div className="divider">
-                    <span>or</span>
-                  </div>
-
-                  {/* Login Form */}
-                  <AuthForm 
-                    type="login" 
-                    onSubmit={handleLogin}
-                    loading={loading}
+            <form onSubmit={handleSubmit} className="auth-form">
+              <div className="form-group">
+                <label htmlFor="email">Email Address</label>
+                <div className="input-container">
+                  <span className="input-icon">📧</span>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="Enter your email"
+                    required
                     disabled={loading}
                   />
-
-                  <div className="signup-link text-center mt-4">
-                    <p>
-                      Don't have an account?{' '}
-                      <Link to="/register" state={{ from }}>
-                        Create one here
-                      </Link>
-                    </p>
-                  </div>
-
-                  {/* Demo Accounts Info */}
-                  <div className="demo-accounts mt-4 p-3 bg-light rounded">
-                    <small className="text-muted">
-                      <strong>Demo Accounts:</strong><br />
-                      Student: student@demo.com / password123<br />
-                      Teacher: teacher@demo.com / password123<br />
-                      Admin: admin@demo.com / password123
-                    </small>
-                  </div>
                 </div>
-              </Col>
-            </Row>
-          </Col>
-        </Row>
-      </Container>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="password">Password</label>
+                <div className="input-container">
+                  <span className="input-icon">🔒</span>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleChange}
+                    placeholder="Enter your password"
+                    required
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div className="form-options">
+                <label className="checkbox-container">
+                  <input
+                    type="checkbox"
+                    name="rememberMe"
+                    checked={formData.rememberMe}
+                    onChange={handleChange}
+                    disabled={loading}
+                  />
+                  <span className="checkmark"></span>
+                  Remember me
+                </label>
+                <Link to="/forgot-password" className="forgot-link">
+                  Forgot password?
+                </Link>
+              </div>
+
+              <button 
+                type="submit" 
+                className="auth-submit-btn"
+                disabled={loading}
+              >
+                {loading ? (
+                  <span className="loading-content">
+                    <span className="spinner"></span>
+                    Signing in...
+                  </span>
+                ) : (
+                  'Sign In'
+                )}
+              </button>
+            </form>
+
+            <div className="social-login">
+              <div className="divider">
+                <span>Or continue with</span>
+              </div>
+              <div className="social-buttons">
+                <button className="social-btn google" disabled={loading}>
+                  <span className="social-icon">🔍</span>
+                  Google
+                </button>
+                <button className="social-btn github" disabled={loading}>
+                  <span className="social-icon">🐙</span>
+                  GitHub
+                </button>
+              </div>
+            </div>
+
+            <div className="auth-footer">
+              <p>
+                Don't have an account?{' '}
+                <Link to="/register" className="auth-link">
+                  Create one here
+                </Link>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
 
 export default Login;

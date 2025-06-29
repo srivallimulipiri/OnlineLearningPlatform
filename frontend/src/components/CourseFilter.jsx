@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Form, Row, Col, Button, Dropdown } from 'react-bootstrap';
 import { COURSE_CATEGORIES, COURSE_LEVELS } from '../utils/constants';
+import { FaSearch, FaTimes } from 'react-icons/fa';
+import './CourseFilter.css';
 
 function CourseFilter({ onFilterChange, initialFilters = {} }) {
   const [filters, setFilters] = useState({
@@ -38,224 +39,180 @@ function CourseFilter({ onFilterChange, initialFilters = {} }) {
 
   return (
     <div className="course-filter-container">
-      <div className="filter-header mb-3">
-        <div className="d-flex justify-content-between align-items-center">
-          <h5 className="mb-0">Filter Courses</h5>
-          {hasActiveFilters && (
-            <Button variant="outline-secondary" size="sm" onClick={clearFilters}>
-              Clear All
-            </Button>
-          )}
-        </div>
+      <div className="filter-header">
+        <h5 className="filter-title">Filter Courses</h5>
+        {hasActiveFilters && (
+          <button
+            onClick={clearFilters}
+            className="clear-filters-btn"
+          >
+            Clear All
+          </button>
+        )}
       </div>
 
-      <Form>
-        <Row className="g-3">
-          {/* Search */}
-          <Col md={6} lg={3}>
-            <Form.Group>
-              <Form.Label className="small fw-semibold">Search</Form.Label>
-              <Form.Control
-                type="text"
-                placeholder="Search courses..."
-                value={filters.search}
-                onChange={(e) => handleFilterChange('search', e.target.value)}
-                className="filter-input"
-              />
-            </Form.Group>
-          </Col>
+      <form className="filter-form">
+        {/* Search */}
+        <div className="filter-group">
+          <label htmlFor="search" className="filter-label">Search</label>
+          <div className="search-input-wrapper">
+            <input
+              type="text"
+              id="search"
+              placeholder="Search courses..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+              className="filter-input search-input"
+            />
+            <FaSearch className="search-icon" />
+          </div>
+        </div>
 
-          {/* Category */}
-          <Col md={6} lg={2}>
-            <Form.Group>
-              <Form.Label className="small fw-semibold">Category</Form.Label>
-              <Form.Select
-                value={filters.category}
-                onChange={(e) => handleFilterChange('category', e.target.value)}
-                className="filter-input"
-              >
-                <option value="">All Categories</option>
-                {COURSE_CATEGORIES.map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-          </Col>
+        {/* Category */}
+        <div className="filter-group">
+          <label htmlFor="category" className="filter-label">Category</label>
+          <select
+            id="category"
+            value={filters.category}
+            onChange={(e) => handleFilterChange('category', e.target.value)}
+            className="filter-select"
+          >
+            <option value="">All Categories</option>
+            {COURSE_CATEGORIES.map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
+          </select>
+        </div>
 
-          {/* Level */}
-          <Col md={6} lg={2}>
-            <Form.Group>
-              <Form.Label className="small fw-semibold">Level</Form.Label>
-              <Form.Select
-                value={filters.level}
-                onChange={(e) => handleFilterChange('level', e.target.value)}
-                className="filter-input"
-              >
-                <option value="">All Levels</option>
-                {Object.values(COURSE_LEVELS).map(level => (
-                  <option key={level} value={level}>{level}</option>
-                ))}
-              </Form.Select>
-            </Form.Group>
-          </Col>
+        {/* Level */}
+        <div className="filter-group">
+          <label htmlFor="level" className="filter-label">Level</label>
+          <select
+            id="level"
+            value={filters.level}
+            onChange={(e) => handleFilterChange('level', e.target.value)}
+            className="filter-select"
+          >
+            <option value="">All Levels</option>
+            {Object.values(COURSE_LEVELS).map(level => (
+              <option key={level} value={level}>{level}</option>
+            ))}
+          </select>
+        </div>
 
-          {/* Price Range */}
-          <Col md={6} lg={2}>
-            <Form.Group>
-              <Form.Label className="small fw-semibold">Price</Form.Label>
-              <Form.Select
-                value={filters.priceRange}
-                onChange={(e) => handleFilterChange('priceRange', e.target.value)}
-                className="filter-input"
-              >
-                <option value="">Any Price</option>
-                <option value="free">Free</option>
-                <option value="0-50">$0 - $50</option>
-                <option value="50-100">$50 - $100</option>
-                <option value="100+">$100+</option>
-              </Form.Select>
-            </Form.Group>
-          </Col>
+        {/* Price Range */}
+        <div className="filter-group">
+          <label htmlFor="priceRange" className="filter-label">Price</label>
+          <select
+            id="priceRange"
+            value={filters.priceRange}
+            onChange={(e) => handleFilterChange('priceRange', e.target.value)}
+            className="filter-select"
+          >
+            <option value="">Any Price</option>
+            <option value="free">Free</option>
+            <option value="0-50">$0 - $50</option>
+            <option value="50-100">$50 - $100</option>
+            <option value="100+">$100+</option>
+          </select>
+        </div>
 
-          {/* Rating */}
-          <Col md={6} lg={2}>
-            <Form.Group>
-              <Form.Label className="small fw-semibold">Rating</Form.Label>
-              <Form.Select
-                value={filters.rating}
-                onChange={(e) => handleFilterChange('rating', e.target.value)}
-                className="filter-input"
-              >
-                <option value="">Any Rating</option>
-                <option value="4.5">4.5+ Stars</option>
-                <option value="4.0">4.0+ Stars</option>
-                <option value="3.5">3.5+ Stars</option>
-                <option value="3.0">3.0+ Stars</option>
-              </Form.Select>
-            </Form.Group>
-          </Col>
+        {/* Rating */}
+        <div className="filter-group">
+          <label htmlFor="rating" className="filter-label">Rating</label>
+          <select
+            id="rating"
+            value={filters.rating}
+            onChange={(e) => handleFilterChange('rating', e.target.value)}
+            className="filter-select"
+          >
+            <option value="">Any Rating</option>
+            <option value="4.5">4.5+ Stars</option>
+            <option value="4.0">4.0+ Stars</option>
+            <option value="3.5">3.5+ Stars</option>
+            <option value="3.0">3.0+ Stars</option>
+          </select>
+        </div>
 
-          {/* Sort By */}
-          <Col md={6} lg={1}>
-            <Form.Group>
-              <Form.Label className="small fw-semibold">Sort By</Form.Label>
-              <Form.Select
-                value={filters.sortBy}
-                onChange={(e) => handleFilterChange('sortBy', e.target.value)}
-                className="filter-input"
-              >
-                <option value="newest">Newest</option>
-                <option value="oldest">Oldest</option>
-                <option value="popular">Most Popular</option>
-                <option value="rating">Highest Rated</option>
-                <option value="price-low">Price: Low to High</option>
-                <option value="price-high">Price: High to Low</option>
-              </Form.Select>
-            </Form.Group>
-          </Col>
-        </Row>
-      </Form>
+        {/* Sort By */}
+        <div className="filter-group">
+          <label htmlFor="sortBy" className="filter-label">Sort By</label>
+          <select
+            id="sortBy"
+            value={filters.sortBy}
+            onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+            className="filter-select"
+          >
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="popular">Most Popular</option>
+            <option value="rating">Highest Rated</option>
+            <option value="price-low">Price: Low to High</option>
+            <option value="price-high">Price: High to Low</option>
+          </select>
+        </div>
+      </form>
 
       {/* Active Filters Display */}
       {hasActiveFilters && (
-        <div className="active-filters mt-3">
-          <div className="d-flex flex-wrap gap-2">
-            {filters.search && (
-              <span className="filter-tag">
-                Search: "{filters.search}"
-                <button 
-                  className="filter-tag-close"
-                  onClick={() => handleFilterChange('search', '')}
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {filters.category && (
-              <span className="filter-tag">
-                Category: {filters.category}
-                <button 
-                  className="filter-tag-close"
-                  onClick={() => handleFilterChange('category', '')}
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {filters.level && (
-              <span className="filter-tag">
-                Level: {filters.level}
-                <button 
-                  className="filter-tag-close"
-                  onClick={() => handleFilterChange('level', '')}
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {filters.priceRange && (
-              <span className="filter-tag">
-                Price: {filters.priceRange === 'free' ? 'Free' : `$${filters.priceRange}`}
-                <button 
-                  className="filter-tag-close"
-                  onClick={() => handleFilterChange('priceRange', '')}
-                >
-                  ×
-                </button>
-              </span>
-            )}
-            {filters.rating && (
-              <span className="filter-tag">
-                Rating: {filters.rating}+ Stars
-                <button 
-                  className="filter-tag-close"
-                  onClick={() => handleFilterChange('rating', '')}
-                >
-                  ×
-                </button>
-              </span>
-            )}
-          </div>
+        <div className="active-filters">
+          {filters.search && (
+            <span className="active-filter-tag">
+              Search: "{filters.search}"
+              <button 
+                className="remove-filter-btn"
+                onClick={() => handleFilterChange('search', '')}
+              >
+                <FaTimes />
+              </button>
+            </span>
+          )}
+          {filters.category && (
+            <span className="active-filter-tag">
+              Category: {filters.category}
+              <button 
+                className="remove-filter-btn"
+                onClick={() => handleFilterChange('category', '')}
+              >
+                <FaTimes />
+              </button>
+            </span>
+          )}
+          {filters.level && (
+            <span className="active-filter-tag">
+              Level: {filters.level}
+              <button 
+                className="remove-filter-btn"
+                onClick={() => handleFilterChange('level', '')}
+              >
+                <FaTimes />
+              </button>
+            </span>
+          )}
+          {filters.priceRange && (
+            <span className="active-filter-tag">
+              Price: {filters.priceRange === 'free' ? 'Free' : `${filters.priceRange}`}
+              <button 
+                className="remove-filter-btn"
+                onClick={() => handleFilterChange('priceRange', '')}
+              >
+                <FaTimes />
+              </button>
+            </span>
+          )}
+          {filters.rating && (
+            <span className="active-filter-tag">
+              Rating: {filters.rating}+ Stars
+              <button 
+                className="remove-filter-btn"
+                onClick={() => handleFilterChange('rating', '')}
+              >
+                <FaTimes />
+              </button>
+            </span>
+          )}
         </div>
       )}
-
-      <style jsx>{`
-        .filter-input {
-          border-radius: 8px;
-          border: 1px solid #e2e8f0;
-          font-size: 0.9rem;
-        }
-        
-        .filter-input:focus {
-          border-color: #667eea;
-          box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.1);
-        }
-        
-        .filter-tag {
-          display: inline-flex;
-          align-items: center;
-          background: #f0f4ff;
-          color: #667eea;
-          padding: 4px 8px;
-          border-radius: 16px;
-          font-size: 0.8rem;
-          font-weight: 500;
-        }
-        
-        .filter-tag-close {
-          background: none;
-          border: none;
-          color: #667eea;
-          margin-left: 6px;
-          font-size: 1.2rem;
-          line-height: 1;
-          cursor: pointer;
-        }
-        
-        .filter-tag-close:hover {
-          color: #5a67d8;
-        }
-      `}</style>
     </div>
   );
 }

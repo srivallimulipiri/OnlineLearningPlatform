@@ -1,92 +1,79 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../context/AuthContext';
 import { hasRole } from '../utils/auth';
 import LoadingSkeleton from './LoadingSkeleton';
-import { Alert } from 'react-bootstrap';
 
-const ProtectedRoute = ({ 
-  children, 
-  requiredRoles = [], 
-  requireAuth = true,
-  fallback = null 
-}) => {
-  const { user, isAuthenticated, loading } = useAuth();
+const ProtectedRoute = ({ children, requiredRoles }) => {
+  const { isAuthenticated, user, loading } = useAuth();
   const location = useLocation();
 
   // Show loading while checking authentication
   if (loading) {
-    return fallback || <LoadingSkeleton type="card" />;
+    return <LoadingSkeleton />;
   }
 
-  // Check if authentication is required
-  if (requireAuth && !isAuthenticated) {
-    // Redirect to login with return URL
-    return (
-      <Navigate 
-        to="/login" 
-        state={{ from: location.pathname }} 
-        replace 
-      />
-    );
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // Check role-based access
-  if (requiredRoles.length > 0 && user && !hasRole(user, requiredRoles)) {
+  // Check if user account is active
+  if (user && !user.isActive) {
     return (
-      <div className="container py-5">
-        <Alert variant="warning">
-          <Alert.Heading>Access Denied</Alert.Heading>
-          <p>You don't have permission to access this page.</p>
-          <p>Required role(s): {requiredRoles.join(', ')}</p>
-          <p>Your role: {user.role}</p>
-        </Alert>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md w-full bg-white shadow-lg rounded-lg p-6 text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Account Deactivated</h2>
+          <p className="text-gray-600 mb-4">
+            Your account has been deactivated. Please contact support for assistance.
+          </p>
+          <button
+            onClick={() => window.location.href = 'mailto:support@learnhub.com'}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+          >
+            Contact Support
+          </button>
+        </div>
       </div>
     );
   }
 
+  // Check role-based access
+  if (requiredRoles && !hasRole(user, requiredRoles)) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   return children;
 };
 
-// Specific route guards
-export const AdminRoute = ({ children, ...props }) => (
-  <ProtectedRoute requiredRoles={['admin']} {...props}>
+// Role-specific route components
+export const StudentRoute = ({ children }) => (
+  <ProtectedRoute requiredRoles={['student']}>
     {children}
   </ProtectedRoute>
 );
 
-export const TeacherRoute = ({ children, ...props }) => (
-  <ProtectedRoute requiredRoles={['teacher', 'admin']} {...props}>
+export const TeacherRoute = ({ children }) => (
+  <ProtectedRoute requiredRoles={['teacher', 'admin']}>
     {children}
   </ProtectedRoute>
 );
 
-export const StudentRoute = ({ children, ...props }) => (
-  <ProtectedRoute requiredRoles={['student', 'teacher', 'admin']} {...props}>
+export const AdminRoute = ({ children }) => (
+  <ProtectedRoute requiredRoles={['admin']}>
     {children}
   </ProtectedRoute>
 );
 
-// Public route that redirects authenticated users
-export const PublicRoute = ({ children, redirectTo = '/' }) => {
-  const { isAuthenticated, loading, user } = useAuth();
-
+export const PublicRoute = ({ children }) => {
+  const { isAuthenticated, loading } = useAuth();
   if (loading) {
-    return <LoadingSkeleton type="card" />;
+    return <LoadingSkeleton />;
   }
-
-  if (isAuthenticated && user) {
-    // Redirect to appropriate dashboard
-    const dashboardRoute = user.role === 'admin' 
-      ? '/dashboard/admin' 
-      : user.role === 'teacher' 
-        ? '/dashboard/teacher' 
-        : '/dashboard/student';
-    
-    return <Navigate to={redirectTo === '/' ? dashboardRoute : redirectTo} replace />;
-  }
-
-  return children;
+  return isAuthenticated ? <Navigate to="/dashboard" replace /> : children;
 };
+
+export default ProtectedRoute;
 
 export default ProtectedRoute;

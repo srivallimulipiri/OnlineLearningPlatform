@@ -122,7 +122,7 @@ function CertificateViewer({ show, onHide, certificate }) {
                         margin: '0 auto 0.5rem'
                       }}
                     />
-                    <p className="mb-0"><strong>LearnHub</strong></p>
+                    <p className="mb-0"><strong>Learn</strong></p>
                     <small className="text-muted">Platform</small>
                   </div>
                 </div>

@@ -1,124 +1,247 @@
-import { useState } from 'react';
-import { Container, Row, Col, Card, Form, Button } from 'react-bootstrap';
-import { COURSE_CATEGORIES, COURSE_LEVELS } from '../utils/constants';
+import React, { useState } from 'react';
+import './CreateCourse.css';
+import { courseAPI } from '../../services/api';
 
-function CreateCourse() {
-  const [courseData, setCourseData] = useState({
+const CreateCourse = ({ onCourseCreated }) => {
+  const [formData, setFormData] = useState({
     title: '',
     description: '',
     category: '',
     level: '',
-    price: 0
+    price: '',
+    requirements: [''],
+    whatYouWillLearn: [''],
+    tags: ''
   });
+  const [loading, setLoading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
 
-  const handleChange = (e) => {
-    setCourseData({
-      ...courseData,
-      [e.target.name]: e.target.value
-    });
+  const categories = [
+    'Web Development',
+    'Mobile Development',
+    'Data Science',
+    'Machine Learning',
+    'Design',
+    'Business',
+    'Marketing',
+    'Photography'
+  ];
+
+  const levels = ['Beginner', 'Intermediate', 'Advanced'];
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e) => {
+  const handleArrayInputChange = (index, value, field) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].map((item, i) => (i === index ? value : item))
+    }));
+  };
+
+  const addArrayItem = (field) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: [...prev[field], '']
+    }));
+  };
+
+  const removeArrayItem = (index, field) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index)
+    }));
+  };
+
+  // FIX: Use correct token retrieval
+  const handleImageUpload = async (file) => {
+    const formDataUpload = new FormData();
+    formDataUpload.append('courseImage', file);
+
+    try {
+      // Use the same logic as api.js for getting the token
+      const storedUser = localStorage.getItem('user');
+      const user = storedUser && storedUser !== 'null' ? JSON.parse(storedUser) : {};
+      const token = user.token;
+
+      const response = await fetch('http://localhost:5000/api/upload/course-image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formDataUpload
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // The backend returns { status, data: { ... } }
+        return data.data.url;
+      }
+      throw new Error('Image upload failed');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Course created:', courseData);
+    setLoading(true);
+
+    try {
+      let imageUrl = null;
+      if (imageFile) {
+        imageUrl = await handleImageUpload(imageFile);
+      }
+
+      // Prepare data for backend validation
+      const courseData = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        category: formData.category,
+        level: formData.level,
+        price: parseFloat(formData.price) || 0,
+        image: imageUrl,
+        requirements: formData.requirements.map(req => req.trim()).filter(Boolean),
+        whatYouWillLearn: formData.whatYouWillLearn.map(item => item.trim()).filter(Boolean),
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(Boolean),
+      };
+
+      // Debug: log what is being sent
+      console.log('Submitting courseData:', courseData);
+
+      // Ensure all required fields are present
+      if (
+        !courseData.title ||
+        !courseData.description ||
+        !courseData.category ||
+        !courseData.level ||
+        courseData.price === '' || isNaN(courseData.price)
+      ) {
+        alert('Please fill in all required fields.');
+        setLoading(false);
+        return;
+      }
+
+      await courseAPI.create(courseData);
+
+      alert('Course created successfully!');
+      setFormData({
+        title: '',
+        description: '',
+        category: '',
+        level: '',
+        price: '',
+        requirements: [''],
+        whatYouWillLearn: [''],
+        tags: ''
+      });
+      setImageFile(null);
+      if (onCourseCreated) onCourseCreated();
+    } catch (error) {
+      console.error('Error creating course:', error);
+      // Show backend error message if available
+      let message = 'Failed to create course';
+      if (error?.response?.data?.errors) {
+        // Mongoose validation errors
+        message = Object.values(error.response.data.errors)
+          .map(e => e.message).join('\n');
+      } else if (error?.response?.data?.message) {
+        message = error.response.data.message;
+      } else if (error?.message) {
+        message = error.message;
+      }
+      alert(`Error: ${message}`);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <Container className="py-4">
-      <Row>
-        <Col lg={8} className="mx-auto">
-          <div className="page-header mb-4">
-            <h1 className="display-6 fw-bold">Create New Course</h1>
-            <p className="text-muted">Share your knowledge</p>
+    <div className="create-course">
+      <h2>Create New Course</h2>
+      <form onSubmit={handleSubmit} className="course-form">
+        <div className="form-section">
+          <h3>Basic Information</h3>
+          <div className="form-group">
+            <label htmlFor="title">Course Title *</label>
+            <input type="text" id="title" name="title" value={formData.title} onChange={handleInputChange} required placeholder="Enter course title" />
           </div>
+          <div className="form-group">
+            <label htmlFor="description">Description *</label>
+            <textarea id="description" name="description" value={formData.description} onChange={handleInputChange} required rows="4" placeholder="Describe your course..." />
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="category">Category *</label>
+              <select id="category" name="category" value={formData.category} onChange={handleInputChange} required>
+                <option value="">Select category</option>
+                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="level">Level *</label>
+              <select id="level" name="level" value={formData.level} onChange={handleInputChange} required>
+                <option value="">Select level</option>
+                {levels.map(level => <option key={level} value={level}>{level}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="price">Price ($) *</label>
+              <input type="number" id="price" name="price" value={formData.price} onChange={handleInputChange} min="0" step="0.01" required placeholder="0.00" />
+            </div>
+          </div>
+        </div>
 
-          <Card>
-            <Card.Body className="p-4">
-              <Form onSubmit={handleSubmit}>
-                <Form.Group className="mb-3">
-                  <Form.Label>Course Title</Form.Label>
-                  <Form.Control
-                    type="text"
-                    name="title"
-                    value={courseData.title}
-                    onChange={handleChange}
-                    className="modern-input"
-                    required
-                  />
-                </Form.Group>
+        <div className="form-section">
+          <h3>Course Image</h3>
+          <div className="form-group">
+            <label htmlFor="image">Course Thumbnail</label>
+            <input type="file" id="image" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} />
+            {imageFile && <div className="image-preview"><img src={URL.createObjectURL(imageFile)} alt="Preview" /></div>}
+          </div>
+        </div>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Description</Form.Label>
-                  <Form.Control
-                    as="textarea"
-                    rows={4}
-                    name="description"
-                    value={courseData.description}
-                    onChange={handleChange}
-                    className="modern-input"
-                    required
-                  />
-                </Form.Group>
+        <div className="form-section">
+          <h3>Course Requirements</h3>
+          {formData.requirements.map((req, index) => (
+            <div key={index} className="array-input">
+              <input type="text" value={req} onChange={(e) => handleArrayInputChange(index, e.target.value, 'requirements')} placeholder="Enter a requirement" />
+              {formData.requirements.length > 1 && <button type="button" onClick={() => removeArrayItem(index, 'requirements')} className="remove-btn">✕</button>}
+            </div>
+          ))}
+          <button type="button" onClick={() => addArrayItem('requirements')} className="add-btn">+ Add Requirement</button>
+        </div>
 
-                <Row>
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Category</Form.Label>
-                      <Form.Select
-                        name="category"
-                        value={courseData.category}
-                        onChange={handleChange}
-                        className="modern-input"
-                        required
-                      >
-                        <option value="">Select Category</option>
-                        {COURSE_CATEGORIES.map(category => (
-                          <option key={category} value={category}>{category}</option>
-                        ))}
-                      </Form.Select>
-                    </Form.Group>
-                  </Col>
-                  <Col md={6}>
-                    <Form.Group className="mb-3">
-                      <Form.Label>Level</Form.Label>
-                      <Form.Select
-                        name="level"
-                        value={courseData.level}
-                        onChange={handleChange}
-                        className="modern-input"
-                        required
-                      >
-                        <option value="">Select Level</option>
-                        {Object.values(COURSE_LEVELS).map(level => (
-                          <option key={level} value={level}>{level}</option>
-                        ))}
-                      </Form.Select>
-                    </Form.Group>
-                  </Col>
-                </Row>
+        <div className="form-section">
+          <h3>What Students Will Learn</h3>
+          {formData.whatYouWillLearn.map((item, index) => (
+            <div key={index} className="array-input">
+              <input type="text" value={item} onChange={(e) => handleArrayInputChange(index, e.target.value, 'whatYouWillLearn')} placeholder="What will students learn?" />
+              {formData.whatYouWillLearn.length > 1 && <button type="button" onClick={() => removeArrayItem(index, 'whatYouWillLearn')} className="remove-btn">✕</button>}
+            </div>
+          ))}
+          <button type="button" onClick={() => addArrayItem('whatYouWillLearn')} className="add-btn">+ Add Learning Outcome</button>
+        </div>
 
-                <Form.Group className="mb-3">
-                  <Form.Label>Price ($)</Form.Label>
-                  <Form.Control
-                    type="number"
-                    name="price"
-                    value={courseData.price}
-                    onChange={handleChange}
-                    min="0"
-                    className="modern-input"
-                  />
-                </Form.Group>
+        <div className="form-section">
+          <h3>Tags</h3>
+          <div className="form-group">
+            <label htmlFor="tags">Tags (comma-separated)</label>
+            <input type="text" id="tags" name="tags" value={formData.tags} onChange={handleInputChange} placeholder="javascript, react, frontend" />
+          </div>
+        </div>
 
-                <Button type="submit" variant="primary">
-                  Create Course
-                </Button>
-              </Form>
-            </Card.Body>
-          </Card>
-        </Col>
-      </Row>
-    </Container>
+        <div className="form-actions">
+          <button type="submit" disabled={loading} className="btn-primary">
+            {loading ? 'Creating...' : 'Create Course'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
-}
+};
 
 export default CreateCourse;

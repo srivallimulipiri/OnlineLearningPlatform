@@ -1,0 +1,1343 @@
+--- backend/controllers/courseController.js ---
+
+const Course = require('../models/Course');
+const Enrollment = require('../models/Enrollment');
+const { asyncHandler } = require('../middleware/errorMiddleware');
+const { sendCourseEnrollmentEmail } = require('../utils/sendEmail');
+
+// Get all courses with optional filters
+const getCourses = asyncHandler(async (req, res) => {
+  const { category, level, priceRange, search, sortBy, page = 1, limit = 12 } = req.query;
+
+  const query = { isPublished: true, isApproved: true };
+
+  // Apply filters
+  if (category) query.category = category;
+  if (level) query.level = level;
+
+  if (priceRange) {
+    if (priceRange === 'free') {
+      query.price = 0;
+    } else if (priceRange.includes('-')) {
+      const [min, max] = priceRange.split('-').map(Number);
+      query.price = { $gte: min, $lte: max };
+    } else if (priceRange.endsWith('+')) {
+      const min = Number(priceRange.slice(0, -1));
+      query.price = { $gte: min };
+    }
+  }
+
+  if (search) {
+    query.$or = [
+      { title: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } },
+      { tags: { $in: [new RegExp(search, 'i')] } }
+    ];
+  }
+
+  // Sorting
+  let sort = { createdAt: -1 };
+  if (sortBy) {
+    switch (sortBy) {
+      case 'newest':
+        sort = { createdAt: -1 };
+        break;
+      case 'oldest':
+        sort = { createdAt: 1 };
+        break;
+      case 'popular':
+        sort = { 'enrolledStudents.length': -1 };
+        break;
+      case 'rating':
+        sort = { rating: -1 };
+        break;
+      case 'price-low':
+        sort = { price: 1 };
+        break;
+      case 'price-high':
+        sort = { price: -1 };
+        break;
+      default:
+        sort = { createdAt: -1 };
+    }
+  }
+
+  const skip = (page - 1) * limit;
+
+  const courses = await Course.find(query)
+    .sort(sort)
+    .skip(skip)
+    .limit(Number(limit))
+    .populate('instructor', 'name email avatar')
+    .select('-sections'); // Don't include sections in list view
+
+  const total = await Course.countDocuments(query);
+
+  res.json({
+    status: 'success',
+    data: {
+      courses,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    }
+  });
+});
+
+// Get course by ID
+const getCourseById = asyncHandler(async (req, res) => {
+  const course = await Course.findById(req.params.id)
+    .populate('instructor', 'name email avatar bio')
+    .populate('reviews.student', 'name avatar');
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check if user is enrolled (if authenticated)
+  let isEnrolled = false;
+  let enrollment = null;
+  
+  if (req.user) {
+    enrollment = await Enrollment.findOne({
+      student: req.user._id,
+      course: course._id
+    });
+    isEnrolled = !!enrollment;
+  }
+
+  res.json({ 
+    status: 'success', 
+    data: {
+      course,
+      isEnrolled,
+      enrollment
+    }
+  });
+});
+
+// Create new course (Teacher only)
+const createCourse = asyncHandler(async (req, res) => {
+  const { 
+    title, 
+    description, 
+    category, 
+    level, 
+    price, 
+    image, 
+    requirements,
+    whatYouWillLearn,
+    tags
+  } = req.body;
+
+  const course = new Course({
+    title,
+    description,
+    category,
+    level,
+    price: Number(price),
+    image,
+    requirements: requirements || [],
+    whatYouWillLearn: whatYouWillLearn || [],
+    tags: tags || [],
+    instructor: req.user._id,
+    isPublished: false,
+    isApproved: false
+  });
+
+  const savedCourse = await course.save();
+  await savedCourse.populate('instructor', 'name email');
+
+  res.status(201).json({ 
+    status: 'success', 
+    data: savedCourse 
+  });
+});
+
+// Update course
+const updateCourse = asyncHandler(async (req, res) => {
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Only instructor or admin can update
+  if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    res.status(403);
+    throw new Error('Not authorized to update this course');
+  }
+
+  const updates = req.body;
+  
+  // Don't allow updating certain fields after approval
+  if (course.isApproved && req.user.role !== 'admin') {
+    delete updates.price;
+    delete updates.category;
+  }
+
+  Object.assign(course, updates);
+  const updatedCourse = await course.save();
+
+  res.json({ status: 'success', data: updatedCourse });
+});
+
+// Delete course
+const deleteCourse = asyncHandler(async (req, res) => {
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Only instructor or admin can delete
+  if (course.instructor.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+    res.status(403);
+    throw new Error('Not authorized to delete this course');
+  }
+
+  // Check if course has enrollments
+  const enrollmentCount = await Enrollment.countDocuments({ course: course._id });
+  if (enrollmentCount > 0 && req.user.role !== 'admin') {
+    res.status(400);
+    throw new Error('Cannot delete course with active enrollments');
+  }
+
+  await Course.findByIdAndDelete(req.params.id);
+
+  res.json({ status: 'success', message: 'Course deleted successfully' });
+});
+
+// Enroll in course
+const enrollInCourse = asyncHandler(async (req, res) => {
+  const course = await Course.findById(req.params.id)
+    .populate('instructor', 'name email');
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  if (!course.isPublished || !course.isApproved) {
+    res.status(400);
+    throw new Error('Course is not available for enrollment');
+  }
+
+  // Check if already enrolled
+  const existingEnrollment = await Enrollment.findOne({
+    student: req.user._id,
+    course: course._id
+  });
+
+  if (existingEnrollment) {
+    res.status(400);
+    throw new Error('Already enrolled in this course');
+  }
+
+  // Create enrollment
+  const enrollment = await Enrollment.create({
+    student: req.user._id,
+    course: course._id,
+    amountPaid: course.price,
+    paymentStatus: course.price === 0 ? 'completed' : 'pending'
+  });
+
+  // Add student to course's enrolledStudents
+  course.enrolledStudents.push(req.user._id);
+  await course.save();
+
+  // Send enrollment email
+  sendCourseEnrollmentEmail(
+    req.user.email,
+    req.user.name,
+    course.title,
+    course.instructor.name
+  );
+
+  res.status(201).json({ 
+    status: 'success', 
+    data: enrollment 
+  });
+});
+
+// Update progress
+const updateProgress = asyncHandler(async (req, res) => {
+  const { sectionId, lessonId, completed } = req.body;
+
+  const enrollment = await Enrollment.findOne({
+    student: req.user._id,
+    course: req.params.id
+  });
+
+  if (!enrollment) {
+    res.status(404);
+    throw new Error('Enrollment not found');
+  }
+
+  // Mark lesson as completed if completed flag is true
+  if (completed) {
+    await enrollment.completeLesson(sectionId, lessonId);
+  }
+
+  // Update progress
+  await enrollment.updateProgress();
+
+  res.json({ status: 'success', data: enrollment });
+});
+
+// Add review to course
+const addReview = asyncHandler(async (req, res) => {
+  const { rating, comment } = req.body;
+  const course = await Course.findById(req.params.id);
+
+  if (!course) {
+    res.status(404);
+    throw new Error('Course not found');
+  }
+
+  // Check if user is enrolled
+  const enrollment = await Enrollment.findOne({
+    student: req.user._id,
+    course: course._id
+  });
+
+  if (!enrollment) {
+    res.status(400);
+    throw new Error('You must be enrolled to review this course');
+  }
+
+  // Check if user already reviewed
+  const existingReview = course.reviews.find(
+    review => review.student.toString() === req.user._id.toString()
+  );
+
+  if (existingReview) {
+    res.status(400);
+    throw new Error('You have already reviewed this course');
+  }
+
+  // Add review
+  course.reviews.push({
+    student: req.user._id,
+    rating: Number(rating),
+    comment
+  });
+
+  // Recalculate average rating
+  await course.calculateAverageRating();
+
+  res.status(201).json({ 
+    status: 'success', 
+    message: 'Review added successfully' 
+  });
+});
+
+// Get teacher's courses
+const getTeacherCourses = asyncHandler(async (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+  const skip = (page - 1) * limit;
+
+  const courses = await Course.find({ instructor: req.user._id })
+    .sort({ createdAt: -1 })
+    .skip(skip)
+    .limit(Number(limit))
+    .populate('enrolledStudents', 'name email');
+
+  const total = await Course.countDocuments({ instructor: req.user._id });
+
+  res.json({
+    status: 'success',
+    data: {
+      courses,
+      pagination: {
+        total,
+        page: Number(page),
+        limit: Number(limit),
+        totalPages: Math.ceil(total / limit)
+      }
+    }
+  });
+});
+
+module.exports = {
+  getCourses,
+  getCourseById,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+  enrollInCourse,
+  updateProgress,
+  addReview,
+  getTeacherCourses
+};
+
+
+--- backend/controllers/uploadController.js ---
+
+const { asyncHandler } = require('../middleware/errorMiddleware');
+
+const path = require('path');
+const fs = require('fs');
+
+// Upload single file
+const uploadSingle = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    res.status(400);
+    throw new Error('No file uploaded');
+  }
+
+  const fileUrl = `/uploads/${path.basename(path.dirname(req.file.path))}/${req.file.filename}`;
+
+  res.json({
+    status: 'success',
+    data: {
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      url: fileUrl,
+      path: req.file.path
+    }
+  });
+});
+
+// Upload multiple files
+const uploadMultiple = asyncHandler(async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    res.status(400);
+    throw new Error('No files uploaded');
+  }
+
+  const files = req.files.map(file => {
+    const fileUrl = `/uploads/${path.basename(path.dirname(file.path))}/${file.filename}`;
+    return {
+      filename: file.filename,
+      originalName: file.originalname,
+      mimetype: file.mimetype,
+      size: file.size,
+      url: fileUrl,
+      path: file.path
+    };
+  });
+
+  res.json({
+    status: 'success',
+    data: {
+      files,
+      count: files.length
+    }
+  });
+});
+
+// Upload course materials (mixed files)
+const uploadCourseFiles = asyncHandler(async (req, res) => {
+  const uploadedFiles = {};
+
+  // Handle course image
+  if (req.files.courseImage && req.files.courseImage[0]) {
+    const file = req.files.courseImage[0];
+    uploadedFiles.courseImage = {
+      filename: file.filename,
+      url: `/uploads/courses/${file.filename}`,
+      size: file.size
+    };
+  }
+
+  // Handle course video
+  if (req.files.courseVideo && req.files.courseVideo[0]) {
+    const file = req.files.courseVideo[0];
+    uploadedFiles.courseVideo = {
+      filename: file.filename,
+      url: `/uploads/videos/${file.filename}`,
+      size: file.size,
+      duration: null // TODO: Extract video duration
+    };
+  }
+
+  // Handle documents
+  if (req.files.documents && req.files.documents.length > 0) {
+    uploadedFiles.documents = req.files.documents.map(file => ({
+      filename: file.filename,
+      originalName: file.originalname,
+      url: `/uploads/documents/${file.filename}`,
+      size: file.size,
+      type: path.extname(file.originalname).toLowerCase()
+    }));
+  }
+
+  if (Object.keys(uploadedFiles).length === 0) {
+    res.status(400);
+    throw new Error('No valid files uploaded');
+  }
+
+  res.json({
+    status: 'success',
+    data: uploadedFiles
+  });
+});
+
+// Delete uploaded file
+const deleteUploadedFile = asyncHandler(async (req, res) => {
+  const { filename, folder } = req.params;
+  
+  if (!filename) {
+    res.status(400);
+    throw new Error('Filename is required');
+  }
+
+  const allowedFolders = ['avatars', 'courses', 'videos', 'documents', 'certificates'];
+  if (folder && !allowedFolders.includes(folder)) {
+    res.status(400);
+    throw new Error('Invalid folder specified');
+  }
+
+  const filePath = folder 
+    ? path.join(process.env.UPLOAD_PATH || './uploads', folder, filename)
+    : path.join(process.env.UPLOAD_PATH || './uploads', filename);
+
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+      res.json({
+        status: 'success',
+        message: 'File deleted successfully'
+      });
+    } else {
+      res.status(404);
+      throw new Error('File not found');
+    }
+  } catch (error) { /* eslint-disable-line no-unused-vars */
+    errors.push(`Failed to delete avatars/${file}: ${error.message}`);
+  }
+});
+
+// Get file info
+const getFileInfo = asyncHandler(async (req, res) => {
+  const { filename, folder } = req.params;
+  
+  const filePath = folder 
+    ? path.join(process.env.UPLOAD_PATH || './uploads', folder, filename)
+    : path.join(process.env.UPLOAD_PATH || './uploads', filename);
+
+  try {
+    if (fs.existsSync(filePath)) {
+      const stats = fs.statSync(filePath);
+      const fileUrl = folder ? `/uploads/${folder}/${filename}` : `/uploads/${filename}`;
+      
+      res.json({
+        status: 'success',
+        data: {
+          filename,
+          size: stats.size,
+          created: stats.birthtime,
+          modified: stats.mtime,
+          url: fileUrl,
+          exists: true
+        }
+      });
+    } else {
+      res.status(404);
+      throw new Error('File not found');
+    }
+  } catch (_error) {
+    res.status(500);
+    throw new Error('Failed to get file info');
+  }
+});
+
+// List files in directory
+const listFiles = asyncHandler(async (req, res) => {
+  const { folder } = req.params;
+  const { page = 1, limit = 20 } = req.query;
+  
+  const allowedFolders = ['avatars', 'courses', 'videos', 'documents', 'certificates'];
+  if (!allowedFolders.includes(folder)) {
+    res.status(400);
+    throw new Error('Invalid folder specified');
+  }
+
+  const dirPath = path.join(process.env.UPLOAD_PATH || './uploads', folder);
+  
+  try {
+    if (!fs.existsSync(dirPath)) {
+      return res.json({
+        status: 'success',
+        data: {
+          files: [],
+          pagination: {
+            total: 0,
+            page: Number(page),
+            limit: Number(limit),
+            totalPages: 0
+          }
+        }
+      });
+    }
+
+    const files = fs.readdirSync(dirPath);
+    const fileStats = files.map(filename => {
+      const filePath = path.join(dirPath, filename);
+      const stats = fs.statSync(filePath);
+      return {
+        filename,
+        size: stats.size,
+        created: stats.birthtime,
+        modified: stats.mtime,
+        url: `/uploads/${folder}/${filename}`,
+        isDirectory: stats.isDirectory()
+      };
+    }).filter(file => !file.isDirectory);
+
+    // Pagination
+    const total = fileStats.length;
+    const startIndex = (page - 1) * limit;
+    const endIndex = startIndex + Number(limit);
+    const paginatedFiles = fileStats.slice(startIndex, endIndex);
+
+    res.json({
+      status: 'success',
+      data: {
+        files: paginatedFiles,
+        pagination: {
+          total,
+          page: Number(page),
+          limit: Number(limit),
+          totalPages: Math.ceil(total / limit)
+        }
+      }
+    });
+  } catch (_error) {
+    res.status(500);
+    throw new Error('Failed to list files');
+  }
+});
+
+// Clean up orphaned files (Admin only)
+const cleanupOrphanedFiles = asyncHandler(async (req, res) => {
+  const User = require('../models/User');
+  const Course = require('../models/Course');
+  
+  const uploadPath = process.env.UPLOAD_PATH || './uploads';
+  let deletedFiles = [];
+  let errors = [];
+
+  try {
+    // Clean up avatar files
+    const avatarPath = path.join(uploadPath, 'avatars');
+    if (fs.existsSync(avatarPath)) {
+      const avatarFiles = fs.readdirSync(avatarPath);
+      const usedAvatars = await User.find({ avatar: { $ne: null } }).select('avatar');
+      const usedAvatarFilenames = usedAvatars.map(user => path.basename(user.avatar));
+
+      for (const file of avatarFiles) {
+        if (!usedAvatarFilenames.includes(file)) {
+          try {
+            fs.unlinkSync(path.join(avatarPath, file));
+            deletedFiles.push(`avatars/${file}`);
+          } catch (error) { /* eslint-disable-line no-unused-vars */
+            errors.push(`Failed to delete avatars/${file}: ${error.message}`);
+          }
+        }
+      }
+    }
+
+    // Clean up course image files
+    const coursePath = path.join(uploadPath, 'courses');
+    if (fs.existsSync(coursePath)) {
+      const courseFiles = fs.readdirSync(coursePath);
+      const usedImages = await Course.find({ image: { $ne: null } }).select('image');
+      const usedImageFilenames = usedImages.map(course => path.basename(course.image));
+
+      for (const file of courseFiles) {
+        if (!usedImageFilenames.includes(file)) {
+          try {
+            fs.unlinkSync(path.join(coursePath, file));
+            deletedFiles.push(`courses/${file}`);
+          } catch (err) {
+            errors.push(`Failed to delete courses/${file}: ${err.message}`);
+          }
+        }
+      }
+    }
+
+    res.json({
+      status: 'success',
+      data: {
+        deletedFiles,
+        deletedCount: deletedFiles.length,
+        errors,
+        errorCount: errors.length
+      }
+    });
+  } catch (err) {
+    res.status(500);
+    throw new Error('Failed to cleanup orphaned files');
+  }
+});
+
+module.exports = {
+  uploadSingle,
+  uploadMultiple,
+  uploadCourseFiles,
+  deleteUploadedFile,
+  getFileInfo,
+  listFiles,
+  cleanupOrphanedFiles
+};
+
+
+--- backend/models/Course.js ---
+
+const mongoose = require('mongoose');
+
+const lessonSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Lesson title is required'],
+    trim: true
+  },
+  description: {
+    type: String,
+    maxlength: [1000, 'Description cannot be more than 1000 characters']
+  },
+  videoUrl: {
+    type: String,
+    match: [/^https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_+.?&/=]*)$/, 'Please use a valid URL with HTTP or HTTPS']
+  },
+  duration: {
+    type: Number, // in minutes
+    min: [1, 'Duration must be at least 1 minute']
+  },
+  resources: [{
+    name: String,
+    url: String,
+    type: {
+      type: String,
+      enum: ['pdf', 'doc', 'link', 'image', 'video']
+    }
+  }],
+  isPreview: {
+    type: Boolean,
+    default: false
+  },
+  order: {
+    type: Number,
+    default: 0
+  }
+}, {
+  timestamps: true
+});
+
+const sectionSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Section title is required'],
+    trim: true
+  },
+  description: {
+    type: String,
+    maxlength: [500, 'Description cannot be more than 500 characters']
+  },
+  lessons: [lessonSchema],
+  order: {
+    type: Number,
+    default: 0
+  }
+}, {
+  timestamps: true
+});
+
+const reviewSchema = new mongoose.Schema({
+  student: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  rating: {
+    type: Number,
+    required: [true, 'Rating is required'],
+    min: [1, 'Rating must be at least 1'],
+    max: [5, 'Rating cannot be more than 5']
+  },
+  comment: {
+    type: String,
+    maxlength: [500, 'Comment cannot be more than 500 characters']
+  }
+}, {
+  timestamps: true
+});
+
+const courseSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: [true, 'Course title is required'],
+    trim: true,
+    maxlength: [100, 'Title cannot be more than 100 characters']
+  },
+  description: {
+    type: String,
+    required: [true, 'Course description is required'],
+    maxlength: [2000, 'Description cannot be more than 2000 characters']
+  },
+  instructor: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: [true, 'Instructor is required']
+  },
+  category: {
+    type: String,
+    required: [true, 'Category is required'],
+    enum: [
+      'Web Development',
+      'Mobile Development',
+      'Data Science',
+      'Machine Learning',
+      'Design',
+      'Business',
+      'Marketing',
+      'Photography'
+    ]
+  },
+  level: {
+    type: String,
+    required: [true, 'Level is required'],
+    enum: ['Beginner', 'Intermediate', 'Advanced']
+  },
+  price: {
+    type: Number,
+    required: [true, 'Price is required'],
+    min: [0, 'Price cannot be negative']
+  },
+  image: {
+    type: String,
+    default: null
+  },
+  sections: [sectionSchema],
+  enrolledStudents: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }],
+  reviews: [reviewSchema],
+  rating: {
+    type: Number,
+    default: 0,
+    min: [0, 'Rating cannot be negative'],
+    max: [5, 'Rating cannot be more than 5']
+  },
+  totalDuration: {
+    type: Number, // in minutes
+    default: 0
+  },
+  requirements: [{
+    type: String,
+    maxlength: [200, 'Requirement cannot be more than 200 characters']
+  }],
+  whatYouWillLearn: [{
+    type: String,
+    maxlength: [200, 'Learning outcome cannot be more than 200 characters']
+  }],
+  tags: [{
+    type: String,
+    trim: true,
+    lowercase: true
+  }],
+  isPublished: {
+    type: Boolean,
+    default: false
+  },
+  isApproved: {
+    type: Boolean,
+    default: false
+  },
+  publishedAt: {
+    type: Date
+  },
+  approvedAt: {
+    type: Date
+  },
+  approvedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  }
+}, {
+  timestamps: true
+});
+
+// Indexes for better query performance
+courseSchema.index({ title: 'text', description: 'text' });
+courseSchema.index({ category: 1 });
+courseSchema.index({ level: 1 });
+courseSchema.index({ price: 1 });
+courseSchema.index({ rating: -1 });
+courseSchema.index({ createdAt: -1 });
+courseSchema.index({ instructor: 1 });
+
+// Calculate average rating
+courseSchema.methods.calculateAverageRating = function() {
+  if (this.reviews.length === 0) {
+    this.rating = 0;
+    return this.save();
+  }
+  
+  const sum = this.reviews.reduce((acc, review) => acc + review.rating, 0);
+  this.rating = Math.round((sum / this.reviews.length) * 10) / 10; // Round to 1 decimal
+  return this.save();
+};
+
+// Calculate total duration
+courseSchema.methods.calculateTotalDuration = function() {
+  let totalDuration = 0;
+  this.sections.forEach(section => {
+    section.lessons.forEach(lesson => {
+      totalDuration += lesson.duration || 0;
+    });
+  });
+  this.totalDuration = totalDuration;
+  return this.save();
+};
+
+// Virtual for enrollment count
+courseSchema.virtual('enrollmentCount').get(function() {
+  return this.enrolledStudents.length;
+});
+
+// Virtual for review count
+courseSchema.virtual('reviewCount').get(function() {
+  return this.reviews.length;
+});
+
+// Ensure virtuals are included in JSON
+courseSchema.set('toJSON', { virtuals: true });
+
+module.exports = mongoose.model('Course', courseSchema);
+
+
+--- backend/routes/courseRoutes.js ---
+
+const express = require('express');
+const router = express.Router();
+const {
+  getCourses,
+  getCourseById,
+  createCourse,
+  updateCourse,
+  deleteCourse,
+  enrollInCourse,
+  updateProgress,
+  addReview,
+  getTeacherCourses
+} = require('../controllers/courseController');
+const { protect, optionalAuth } = require('../middleware/authMiddleware');
+const { requireTeacher, checkCourseOwnership } = require('../middleware/roleMiddleware');
+const { courseValidation, queryValidation, paramValidation } = require('../utils/validators');
+
+// @desc    Get all courses with filters
+// @route   GET /api/courses
+// @access  Public
+router.get('/', queryValidation.courseFilters, queryValidation.pagination, getCourses);
+
+// @desc    Get course by ID
+// @route   GET /api/courses/:id
+// @access  Public (but shows enrollment status if authenticated)
+router.get('/:id', paramValidation.mongoId, optionalAuth, getCourseById);
+
+// @desc    Create new course
+// @route   POST /api/courses
+// @access  Private (Teacher only)
+router.post('/', protect, requireTeacher, courseValidation.create, createCourse);
+
+// @desc    Update course
+// @route   PUT /api/courses/:id
+// @access  Private (Teacher/Admin only)
+router.put('/:id', protect, paramValidation.mongoId, checkCourseOwnership, courseValidation.update, updateCourse);
+
+// @desc    Delete course
+// @route   DELETE /api/courses/:id
+// @access  Private (Teacher/Admin only)
+router.delete('/:id', protect, paramValidation.mongoId, checkCourseOwnership, deleteCourse);
+
+// @desc    Enroll in course
+// @route   POST /api/courses/:id/enroll
+// @access  Private
+router.post('/:id/enroll', protect, paramValidation.mongoId, enrollInCourse);
+
+// @desc    Update learning progress
+// @route   PUT /api/courses/:id/progress
+// @access  Private
+router.put('/:id/progress', protect, paramValidation.mongoId, updateProgress);
+
+// @desc    Add review to course
+// @route   POST /api/courses/:id/review
+// @access  Private
+router.post('/:id/review', protect, paramValidation.mongoId, courseValidation.addReview, addReview);
+
+// @desc    Get teacher's courses
+// @route   GET /api/courses/teacher/my-courses
+// @access  Private (Teacher only)
+router.get('/teacher/my-courses', protect, requireTeacher, queryValidation.pagination, getTeacherCourses);
+
+module.exports = router;
+
+
+--- backend/routes/uploadRoutes.js ---
+
+const express = require('express');
+const router = express.Router();
+const {
+  uploadSingle,
+  uploadMultiple,
+  uploadCourseFiles,
+  deleteUploadedFile,
+  getFileInfo,
+  listFiles,
+  cleanupOrphanedFiles
+} = require('../controllers/uploadController');
+const { protect } = require('../middleware/authMiddleware');
+const { requireAdmin, requireTeacher } = require('../middleware/roleMiddleware');
+const { uploadMiddleware, handleUploadError, cleanupFiles } = require('../middleware/uploadMiddleware');
+
+// @desc    Upload single file
+// @route   POST /api/upload/single/:fieldName
+// @access  Private
+router.post('/single/:fieldName', protect, (req, res, next) => {
+  uploadMiddleware.single(req.params.fieldName)(req, res, next);
+}, handleUploadError, cleanupFiles, uploadSingle);
+
+// @desc    Upload multiple files
+// @route   POST /api/upload/multiple/:fieldName
+// @access  Private
+router.post('/multiple/:fieldName', protect, (req, res, next) => {
+  uploadMiddleware.multiple(req.params.fieldName, 5)(req, res, next);
+}, handleUploadError, cleanupFiles, uploadMultiple);
+
+// @desc    Upload course files (image, video, documents)
+// @route   POST /api/upload/course-files
+// @access  Private (Teacher only)
+router.post('/course-files', protect, requireTeacher, uploadMiddleware.courseFiles, handleUploadError, cleanupFiles, uploadCourseFiles);
+
+// @desc    Upload course image
+// @route   POST /api/upload/course-image
+// @access  Private (Teacher only)
+router.post('/course-image', protect, requireTeacher, uploadMiddleware.courseImage, handleUploadError, cleanupFiles, uploadSingle);
+
+// @desc    Upload course video
+// @route   POST /api/upload/course-video
+// @access  Private (Teacher only)
+router.post('/course-video', protect, requireTeacher, uploadMiddleware.courseVideo, handleUploadError, cleanupFiles, uploadSingle);
+
+// @desc    Upload course documents
+// @route   POST /api/upload/course-documents
+// @access  Private (Teacher only)
+router.post('/course-documents', protect, requireTeacher, uploadMiddleware.courseDocuments, handleUploadError, cleanupFiles, uploadMultiple);
+
+// @desc    Delete uploaded file
+// @route   DELETE /api/upload/:folder/:filename
+// @access  Private
+router.delete('/:folder/:filename', protect, deleteUploadedFile);
+
+// @desc    Delete uploaded file (no folder)
+// @route   DELETE /api/upload/:filename
+// @access  Private
+router.delete('/:filename', protect, deleteUploadedFile);
+
+// @desc    Get file information
+// @route   GET /api/upload/info/:folder/:filename
+// @access  Private
+router.get('/info/:folder/:filename', protect, getFileInfo);
+
+// @desc    Get file information (no folder)
+// @route   GET /api/upload/info/:filename
+// @access  Private
+router.get('/info/:filename', protect, getFileInfo);
+
+// @desc    List files in directory
+// @route   GET /api/upload/list/:folder
+// @access  Private
+router.get('/list/:folder', protect, listFiles);
+
+// @desc    Clean up orphaned files
+// @route   POST /api/upload/cleanup
+// @access  Private (Admin only)
+router.post('/cleanup', protect, requireAdmin, cleanupOrphanedFiles);
+
+module.exports = router;
+
+
+--- frontend/src/components/teacher/CreateCourse.jsx ---
+
+import React, { useState } from 'react';
+import './CreateCourse.css';
+import { courseAPI } from '../../services/api';
+
+const CreateCourse = ({ onCourseCreated }) => {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    category: '',
+    level: '',
+    price: '',
+    requirements: [''],
+    whatYouWillLearn: [''],
+    tags: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const [imageFile, setImageFile] = useState(null);
+
+  const categories = [
+    'Web Development',
+    'Mobile Development',
+    'Data Science',
+    'Machine Learning',
+    'Design',
+    'Business',
+    'Marketing',
+    'Photography'
+  ];
+
+  const levels = ['Beginner', 'Intermediate', 'Advanced'];
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleArrayInputChange = (index, value, field) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].map((item, i) => (i === index ? value : item))
+    }));
+  };
+
+  const addArrayItem = (field) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: [...prev[field], '']
+    }));
+  };
+
+  const removeArrayItem = (index, field) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: prev[field].filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleImageUpload = async (file) => {
+    const formData = new FormData();
+    formData.append('courseImage', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('http://localhost:5000/api/upload/course-image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        return data.data.url;
+      }
+      throw new Error('Image upload failed');
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      return null;
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      let imageUrl = null;
+      if (imageFile) {
+        imageUrl = await handleImageUpload(imageFile);
+      }
+
+      const courseData = {
+        ...formData,
+        price: parseFloat(formData.price) || 0,
+        image: imageUrl,
+        requirements: formData.requirements.filter(req => req.trim()),
+        whatYouWillLearn: formData.whatYouWillLearn.filter(item => item.trim()),
+        tags: formData.tags.split(',').map(tag => tag.trim()).filter(tag => tag)
+      };
+
+      await courseAPI.create(courseData);
+
+      alert('Course created successfully!');
+      setFormData({
+        title: '',
+        description: '',
+        category: '',
+        level: '',
+        price: '',
+        requirements: [''],
+        whatYouWillLearn: [''],
+        tags: ''
+      });
+      setImageFile(null);
+      if (onCourseCreated) onCourseCreated();
+    } catch (error) {
+      console.error('Error creating course:', error);
+      const message = error?.response?.data?.message || 'Failed to create course';
+      alert(`Error: ${message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="create-course">
+      <h2>Create New Course</h2>
+      <form onSubmit={handleSubmit} className="course-form">
+        <div className="form-section">
+          <h3>Basic Information</h3>
+          <div className="form-group">
+            <label htmlFor="title">Course Title *</label>
+            <input type="text" id="title" name="title" value={formData.title} onChange={handleInputChange} required placeholder="Enter course title" />
+          </div>
+          <div className="form-group">
+            <label htmlFor="description">Description *</label>
+            <textarea id="description" name="description" value={formData.description} onChange={handleInputChange} required rows="4" placeholder="Describe your course..." />
+          </div>
+          <div className="form-row">
+            <div className="form-group">
+              <label htmlFor="category">Category *</label>
+              <select id="category" name="category" value={formData.category} onChange={handleInputChange} required>
+                <option value="">Select category</option>
+                {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="level">Level *</label>
+              <select id="level" name="level" value={formData.level} onChange={handleInputChange} required>
+                <option value="">Select level</option>
+                {levels.map(level => <option key={level} value={level}>{level}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label htmlFor="price">Price ($) *</label>
+              <input type="number" id="price" name="price" value={formData.price} onChange={handleInputChange} min="0" step="0.01" required placeholder="0.00" />
+            </div>
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h3>Course Image</h3>
+          <div className="form-group">
+            <label htmlFor="image">Course Thumbnail</label>
+            <input type="file" id="image" accept="image/*" onChange={(e) => setImageFile(e.target.files[0])} />
+            {imageFile && <div className="image-preview"><img src={URL.createObjectURL(imageFile)} alt="Preview" /></div>}
+          </div>
+        </div>
+
+        <div className="form-section">
+          <h3>Course Requirements</h3>
+          {formData.requirements.map((req, index) => (
+            <div key={index} className="array-input">
+              <input type="text" value={req} onChange={(e) => handleArrayInputChange(index, e.target.value, 'requirements')} placeholder="Enter a requirement" />
+              {formData.requirements.length > 1 && <button type="button" onClick={() => removeArrayItem(index, 'requirements')} className="remove-btn">✕</button>}
+            </div>
+          ))}
+          <button type="button" onClick={() => addArrayItem('requirements')} className="add-btn">+ Add Requirement</button>
+        </div>
+
+        <div className="form-section">
+          <h3>What Students Will Learn</h3>
+          {formData.whatYouWillLearn.map((item, index) => (
+            <div key={index} className="array-input">
+              <input type="text" value={item} onChange={(e) => handleArrayInputChange(index, e.target.value, 'whatYouWillLearn')} placeholder="What will students learn?" />
+              {formData.whatYouWillLearn.length > 1 && <button type="button" onClick={() => removeArrayItem(index, 'whatYouWillLearn')} className="remove-btn">✕</button>}
+            </div>
+          ))}
+          <button type="button" onClick={() => addArrayItem('whatYouWillLearn')} className="add-btn">+ Add Learning Outcome</button>
+        </div>
+
+        <div className="form-section">
+          <h3>Tags</h3>
+          <div className="form-group">
+            <label htmlFor="tags">Tags (comma-separated)</label>
+            <input type="text" id="tags" name="tags" value={formData.tags} onChange={handleInputChange} placeholder="javascript, react, frontend" />
+          </div>
+        </div>
+
+        <div className="form-actions">
+          <button type="submit" disabled={loading} className="btn-primary">
+            {loading ? 'Creating...' : 'Create Course'}
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default CreateCourse;
+
+--- frontend/src/services/api.js ---
+
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:5000/api';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add auth token to requests
+api.interceptors.request.use((config) => {
+  let user = {};
+  try {
+    const stored = localStorage.getItem('user');
+    const parsed = stored && stored !== 'null' ? JSON.parse(stored) : {};
+    user = parsed || {};
+  } catch (err) {
+    user = {};
+  }
+
+  if (user.token) {
+    config.headers.Authorization = `Bearer ${user.token}`;
+  }
+  return config;
+});
+
+// Handle auth errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
+// Modular API exports
+export const authAPI = {
+  register: (data) => api.post('/auth/register', data),
+  login: (data) => api.post('/auth/login', data),
+  profile: () => api.get('/auth/profile'),
+};
+
+export const courseAPI = {
+  getAll: (params) => api.get('/courses', { params }),
+  getById: (id) => api.get(`/courses/${id}`),
+  enroll: (id) => api.post(`/courses/${id}/enroll`),
+  getTeacherCourses: () => api.get('/courses/teacher'),
+  create: (data) => api.post('/courses', data), // ✅ Add this line
+};
+
+export default api;

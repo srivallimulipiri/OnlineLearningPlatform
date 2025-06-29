@@ -157,6 +157,14 @@ const courseValidation = {
       .isLength({ max: 200 })
       .withMessage('Each learning outcome cannot exceed 200 characters'),
     
+    body('tags')
+      .optional()
+      .isString()
+      .withMessage('Tags must be a string')
+      .customSanitizer(value => value.split(',').map(tag => tag.trim()).filter(tag => tag))
+      .isArray()
+      .withMessage('Tags must be an array of strings'),
+
     handleValidationErrors
   ],
 
@@ -261,6 +269,58 @@ const courseValidation = {
       .withMessage('Comment cannot exceed 500 characters'),
     
     handleValidationErrors
+  ],
+
+  updateSection: [
+    body('title')
+      .optional()
+      .trim()
+      .isLength({ min: 3, max: 100 })
+      .withMessage('Section title must be between 3 and 100 characters'),
+    
+    body('description')
+      .optional()
+      .trim()
+      .isLength({ max: 500 })
+      .withMessage('Section description cannot exceed 500 characters'),
+    
+    body('order')
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage('Order must be a non-negative integer'),
+    
+    handleValidationErrors
+  ],
+
+  updateLesson: [
+    body('title')
+      .optional()
+      .trim()
+      .isLength({ min: 3, max: 100 })
+      .withMessage('Lesson title must be between 3 and 100 characters'),
+    
+    body('description')
+      .optional()
+      .trim()
+      .isLength({ max: 1000 })
+      .withMessage('Lesson description cannot exceed 1000 characters'),
+    
+    body('videoUrl')
+      .optional()
+      .isURL()
+      .withMessage('Please provide a valid video URL'),
+    
+    body('duration')
+      .optional()
+      .isInt({ min: 1 })
+      .withMessage('Duration must be at least 1 minute'),
+    
+    body('order')
+      .optional()
+      .isInt({ min: 0 })
+      .withMessage('Order must be a non-negative integer'),
+    
+    handleValidationErrors
   ]
 };
 
@@ -279,7 +339,6 @@ const queryValidation = {
     
     handleValidationErrors
   ],
-
   courseFilters: [
     query('category')
       .optional()
@@ -294,38 +353,23 @@ const queryValidation = {
         'Photography'
       ])
       .withMessage('Invalid category'),
-    
     query('level')
       .optional()
       .isIn(['Beginner', 'Intermediate', 'Advanced'])
       .withMessage('Invalid level'),
-    
-    query('minPrice')
+    query('priceRange')
       .optional()
-      .isFloat({ min: 0 })
-      .withMessage('Minimum price must be non-negative'),
-    
-    query('maxPrice')
-      .optional()
-      .isFloat({ min: 0 })
-      .withMessage('Maximum price must be non-negative'),
-    
-    query('rating')
-      .optional()
-      .isFloat({ min: 0, max: 5 })
-      .withMessage('Rating must be between 0 and 5'),
-    
+      .matches(/^(free|\d+-\d+|\d+\+)$/)
+      .withMessage('Invalid price range format'),
     query('search')
       .optional()
       .trim()
-      .isLength({ min: 1, max: 100 })
-      .withMessage('Search term must be between 1 and 100 characters'),
-    
+      .isLength({ min: 2 })
+      .withMessage('Search query must be at least 2 characters'),
     query('sortBy')
       .optional()
       .isIn(['newest', 'oldest', 'popular', 'rating', 'price-low', 'price-high'])
-      .withMessage('Invalid sort option'),
-    
+      .withMessage('Invalid sort by option'),
     handleValidationErrors
   ]
 };
@@ -352,6 +396,22 @@ const paramValidation = {
     param('userId')
       .isMongoId()
       .withMessage('Invalid user ID format'),
+    
+    handleValidationErrors
+  ],
+
+  sectionId: [
+    param('sectionId')
+      .isMongoId()
+      .withMessage('Invalid section ID format'),
+    
+    handleValidationErrors
+  ],
+
+  lessonId: [
+    param('lessonId')
+      .isMongoId()
+      .withMessage('Invalid lesson ID format'),
     
     handleValidationErrors
   ]
@@ -442,6 +502,9 @@ const customValidators = {
     return true;
   }
 };
+
+console.log('queryValidation.courseFilters:', queryValidation.courseFilters);
+console.log('queryValidation.pagination:', queryValidation.pagination);
 
 module.exports = {
   userValidation,

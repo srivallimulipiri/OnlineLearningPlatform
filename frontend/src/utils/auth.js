@@ -84,11 +84,11 @@ export const setupTokenExpiryCheck = (logoutCallback) => {
 export const getDashboardRoute = (role) => {
   switch (role) {
     case 'admin':
-      return '/dashboard/admin';
+      return '/admin-dashboard';
     case 'teacher':
-      return '/dashboard/teacher';
+      return '/teacher-dashboard';
     case 'student':
-      return '/dashboard/student';
+      return '/student-dashboard';
     default:
       return '/';
   }

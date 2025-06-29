@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Container, Row, Col, Tab, Tabs } from 'react-bootstrap';
 import CourseCard from '../components/CourseCard';
 import { useAuth } from '../hooks/useAuth';
 
 function MyCourses() {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState('in-progress');
   
   // Mock enrolled courses data
   const enrolledCourses = [
@@ -57,40 +57,65 @@ function MyCourses() {
   ];
 
   return (
-    <Container className="py-4">
-      <div className="page-header mb-4">
-        <h1 className="display-6 fw-bold">My Courses</h1>
-        <p className="text-muted">Track your learning progress and continue where you left off</p>
+    <div className="p-8">
+      <div className="mb-8">
+        <h1 className="text-4xl font-bold text-neutral-800">My Courses</h1>
+        <p className="text-lg text-neutral-600">Track your learning progress and continue where you left off</p>
       </div>
 
-      <Tabs defaultActiveKey="in-progress" className="mb-4">
-        <Tab eventKey="in-progress" title={`In Progress (${enrolledCourses.length})`}>
-          <Row>
-            {enrolledCourses.map(course => (
-              <Col md={6} lg={4} className="mb-4" key={course.id}>
-                <CourseCard 
-                  course={course} 
-                  showProgress={true}
-                />
-              </Col>
-            ))}
-          </Row>
-        </Tab>
+      <div className="bg-white rounded-xl shadow-lifted p-8">
+        <div className="border-b border-neutral-200 mb-6">
+          <nav className="flex space-x-8" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('in-progress')}
+              className={`py-3 px-4 text-lg font-medium transition-colors duration-200
+                ${activeTab === 'in-progress'
+                  ? 'border-b-2 border-primary-dark text-primary-dark'
+                  : 'text-neutral-600 hover:text-neutral-800'
+                }`}
+            >
+              In Progress ({enrolledCourses.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('completed')}
+              className={`py-3 px-4 text-lg font-medium transition-colors duration-200
+                ${activeTab === 'completed'
+                  ? 'border-b-2 border-primary-dark text-primary-dark'
+                  : 'text-neutral-600 hover:text-neutral-800'
+                }`}
+            >
+              Completed ({completedCourses.length})
+            </button>
+          </nav>
+        </div>
 
-        <Tab eventKey="completed" title={`Completed (${completedCourses.length})`}>
-          <Row>
-            {completedCourses.map(course => (
-              <Col md={6} lg={4} className="mb-4" key={course.id}>
+        <div>
+          {activeTab === 'in-progress' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {enrolledCourses.map(course => (
                 <CourseCard 
+                  key={course.id}
                   course={course} 
                   showProgress={true}
                 />
-              </Col>
-            ))}
-          </Row>
-        </Tab>
-      </Tabs>
-    </Container>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'completed' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {completedCourses.map(course => (
+                <CourseCard 
+                  key={course.id}
+                  course={course} 
+                  showProgress={true}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
